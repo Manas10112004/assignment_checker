@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Mark Attendance</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-5xl mx-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-3xl font-bold">Attendance Register</h2>
+            <a href="/teacher/dashboard" class="bg-gray-600 text-white px-4 py-2 rounded">Back</a>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-4">{% for c, m in messages %}<div class="p-3 bg-blue-100 text-blue-800 rounded">{{ m }}</div>{% endfor %}</div>
+            {% endif %}
+        {% endwith %}
+
+        <div class="bg-white p-6 rounded shadow mb-6">
+            <h3 class="font-bold mb-4">1. Select Class</h3>
+            <div class="flex gap-4">
+                {% if teacher.assigned_classes %}
+                    {% for c in teacher.assigned_classes %}
+                        <a href="/teacher/attendance?class_name={{ c.class_name }}&div={{ c.division }}"
+                           class="px-4 py-2 rounded border hover:bg-blue-50
+                           {% if c.class_name == selected_class and c.division == selected_div %}bg-blue-600 text-white border-blue-600{% else %}bg-white{% endif %}">
+                           {{ c.class_name }} - {{ c.division }}
+                        </a>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-red-500">You have no classes assigned. Go to Dashboard > Profile to add one.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if selected_class %}
+        <div class="bg-white p-6 rounded shadow">
+            <h3 class="font-bold mb-4">2. Marking: {{ selected_class }} - {{ selected_div }}</h3>
+            <form method="POST">
+                <input type="date" name="date" required class="border p-2 rounded mb-4" value="{{ now.strftime('%Y-%m-%d') }}">
+
+                {% if students %}
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-gray-50 border-b">
+                            <tr>
+                                <th class="p-3">Roll No</th>
+                                <th class="p-3">Name</th>
+                                <th class="p-3 text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for student in students %}
+                            <tr class="border-b hover:bg-gray-50">
+                                <td class="p-3">{{ student.roll_no }}</td>
+                                <td class="p-3">{{ student.username }}</td>
+                                <td class="p-3 text-center">
+                                    <label class="mr-4 cursor-pointer"><input type="radio" name="status_{{ student.id }}" value="Present" checked> <span class="text-green-600 font-bold">P</span></label>
+                                    <label class="cursor-pointer"><input type="radio" name="status_{{ student.id }}" value="Absent"> <span class="text-red-600 font-bold">A</span></label>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <button type="submit" class="mt-6 bg-green-600 text-white px-8 py-3 rounded font-bold w-full hover:bg-green-700">Save Attendance</button>
+                {% else %}
+                    <p class="text-center py-8 text-gray-500">No students registered in this class/division yet.</p>
+                {% endif %}
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

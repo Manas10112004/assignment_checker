@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="w-full max-w-md bg-white rounded-xl p-8 shadow">
+  <h2 class="text-2xl font-bold mb-4 text-center">Login</h2>
+  <form method="POST" class="space-y-4">
+    <input name="username" placeholder="Username" class="w-full p-2 border rounded" required>
+    <input type="password" name="password" placeholder="Password" class="w-full p-2 border rounded" required>
+    <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Login</button>
+  </form>
+  <p class="mt-4 text-center text-sm">Don’t have an account? <a href="/register" class="text-blue-500">Register</a></p>
+</div>
+{% endblock %}

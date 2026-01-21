@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Edit Assignment</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex min-h-screen">
+
+    <div class="max-w-3xl mx-auto w-full p-8">
+        <div class="bg-white p-8 rounded-lg shadow-md">
+            <h2 class="text-2xl font-bold mb-6 text-center text-gray-800">Edit Assignment</h2>
+
+            <form method="POST" enctype="multipart/form-data" class="space-y-4">
+                <div>
+                    <label class="block font-medium mb-1">Assignment Title</label>
+                    <input type="text" name="title" value="{{ assignment.title }}" required
+                        class="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-medium mb-1">Class</label>
+                        <input type="text" name="class_name" value="{{ assignment.class_name }}" required
+                            class="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    </div>
+                    <div>
+                        <label class="block font-medium mb-1">Division</label>
+                        <input type="text" name="division" value="{{ assignment.division }}" required
+                            class="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-medium mb-1">Subject</label>
+                    <input type="text" name="subject_name" value="{{ assignment.subject_name }}" required
+                        class="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400">
+                </div>
+
+                <div class="border-t pt-4">
+                    <label class="block font-medium mb-1">Update Questionnaire File (Optional)</label>
+                    <input type="file" name="questionnaire_file" accept=".pdf,.doc,.docx,.txt"
+                        class="w-full border border-gray-300 px-3 py-2 rounded-lg">
+                    <p class="text-xs text-gray-500 mt-1">Leave empty to keep current file.</p>
+                </div>
+
+                <div class="flex gap-4 mt-6">
+                    <button type="submit" class="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 font-bold">
+                        Save Changes
+                    </button>
+                    <a href="/teacher/assignments" class="flex-1 block text-center bg-gray-300 text-gray-800 py-2 rounded hover:bg-gray-400">
+                        Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

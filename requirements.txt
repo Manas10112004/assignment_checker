@@ -1,0 +1,12 @@
+Flask
+Flask-SQLAlchemy
+Flask-Migrate
+Werkzeug
+groq
+python-dotenv
+psycopg2-binary
+gunicorn
+pypdf
+pytesseract
+pdf2image
+Pillow

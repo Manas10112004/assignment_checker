@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Assistant - Create Assignment</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .chat-bubble { max-width: 80%; padding: 15px; border-radius: 15px; margin-bottom: 15px; animation: fadeIn 0.3s; }
+        .bot-msg { background-color: #f3f4f6; color: #1f2937; border-bottom-left-radius: 2px; }
+        .user-msg { background-color: #3b82f6; color: white; border-bottom-right-radius: 2px; margin-left: auto; }
+        .typing-indicator span { display: inline-block; width: 8px; height: 8px; background-color: #9ca3af; border-radius: 50%; animation: bounce 1.4s infinite ease-in-out both; }
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans flex min-h-screen">
+
+    <aside class="w-64 bg-slate-800 text-white flex flex-col shadow-lg fixed h-full z-10">
+        <div class="p-6 text-center border-b border-slate-700"><h2 class="text-lg font-bold">Teacher Panel</h2></div>
+        <nav class="flex-1 p-4 space-y-2">
+            <a href="/teacher/dashboard" class="block py-2.5 px-4 rounded hover:bg-slate-700 text-gray-300 hover:text-white"><i class="fas fa-user-circle w-6"></i> Profile</a>
+            <a href="/teacher/create-assignment" class="block py-2.5 px-4 rounded bg-slate-700 text-white"><i class="fas fa-robot w-6"></i> AI Assistant</a>
+            <a href="/teacher/assignments" class="block py-2.5 px-4 rounded hover:bg-slate-700 text-gray-300 hover:text-white"><i class="fas fa-list w-6"></i> View Assignments</a>
+            <a href="/logout" class="block py-2.5 px-4 rounded hover:bg-red-600 mt-8"><i class="fas fa-sign-out-alt w-6"></i> Logout</a>
+        </nav>
+    </aside>
+
+    <main class="flex-1 p-0 ml-64 flex flex-col h-screen">
+
+        <header class="bg-white shadow p-4 z-10">
+            <h1 class="text-xl font-bold text-gray-800"><i class="fas fa-magic text-blue-500 mr-2"></i>Assignment Creation Assistant</h1>
+        </header>
+
+        <div id="chat-container" class="flex-1 overflow-y-auto p-6 space-y-4">
+            <div class="chat-bubble bot-msg shadow-sm">
+                <p><strong><i class="fas fa-robot mr-2"></i>AI Assistant:</strong></p>
+                <p class="mt-1">Hello! I'm here to help you create a new assignment.</p>
+                <p class="mt-2">First, please tell me the <strong>Title, Class, and Subject</strong> for this assignment.</p>
+            </div>
+
+            <div id="metadata-form-container" class="chat-bubble bot-msg shadow-sm w-full max-w-lg bg-white border border-gray-200">
+                <div class="space-y-3">
+                    <input type="text" id="title" placeholder="Assignment Title (e.g. Java Basics)" class="w-full p-2 border rounded">
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="text" id="class_name" placeholder="Class (e.g. TY-CS)" class="w-full p-2 border rounded">
+                        <input type="text" id="division" placeholder="Division (e.g. A)" class="w-full p-2 border rounded">
+                    </div>
+                    <input type="text" id="subject_name" placeholder="Subject (e.g. Java)" class="w-full p-2 border rounded">
+                    <button onclick="submitMetadata()" class="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700">Next Step &rarr;</button>
+                </div>
+            </div>
+        </div>
+
+        <form id="real-form" action="/teacher/create-assignment" method="POST" enctype="multipart/form-data" class="hidden">
+            <input type="text" name="title" id="real-title">
+            <input type="text" name="class_name" id="real-class">
+            <input type="text" name="division" id="real-div">
+            <input type="text" name="subject_name" id="real-subject">
+            <input type="file" name="questionnaire_file" id="real-file">
+            <textarea name="ai_generated_key" id="real-key"></textarea>
+        </form>
+
+        <div id="input-area" class="bg-white p-4 border-t hidden">
+            <div class="max-w-4xl mx-auto">
+                <div class="flex items-center space-x-4">
+                    <label class="flex-1 cursor-pointer bg-gray-100 hover:bg-gray-200 border-2 border-dashed border-gray-400 rounded-lg p-4 text-center transition">
+                        <span class="text-gray-600 font-medium"><i class="fas fa-cloud-upload-alt mr-2"></i>Click to Upload Questionnaire (.txt)</span>
+                        <input type="file" id="user-file-input" accept=".txt,.pdf" class="hidden" onchange="handleFileUpload(this)">
+                    </la
