@@ -127,12 +127,12 @@ def create_assignment():
     if session.get('role') != 'teacher':
         return redirect('/login')
 
-    # 2. Safety Check: Does this user actually exist?
-    # (Fixes the crash after a database reset)
+    # 2. SAFETY CHECK: Does the user exist in the DB?
+    # (Fixes crash if database was reset but browser cookie remains)
     teacher = User.query.get(session.get('user_id'))
     if not teacher:
         session.clear()
-        flash("Session expired or invalid. Please login again.", "warning")
+        flash("Session expired. Please login again.", "warning")
         return redirect('/login')
 
     if request.method == 'POST':
@@ -141,32 +141,29 @@ def create_assignment():
             file = request.files.get('questionnaire_file')
             key_text = request.form.get('ai_generated_key')
 
-            # 4. Create Assignment
             new_assign = Assignment(
                 title=request.form['title'],
                 class_name=request.form['class_name'].strip().upper(),
                 division=request.form['division'].strip().upper(),
                 subject_name=request.form['subject_name'],
-                teacher_name=teacher.username,  # Use the object we fetched
+                teacher_name=teacher.username,
                 teacher_id=teacher.id,
                 answer_key_content=key_text,
                 questionnaire_file=file.read() if file else None,
                 questionnaire_filename=secure_filename(file.filename) if file else "unknown.txt"
             )
-
             db.session.add(new_assign)
             db.session.commit()
-
-            flash("Assignment Created Successfully!", "success")
+            flash("Assignment Created!", "success")
             return redirect('/teacher/assignments')
 
         except Exception as e:
-            db.session.rollback()
-            print(f"CREATE ASSIGNMENT ERROR: {e}")
-            flash(f"Error creating assignment: {str(e)}", "danger")
+            print(f"ERROR: {e}")
+            flash(f"Error creating assignment: {e}", "danger")
             return redirect('/teacher/create-assignment')
 
     return render_template('create_assignment.html')
+
 
 @routes.route('/teacher/generate-key', methods=['POST'])
 def generate_key_api():
