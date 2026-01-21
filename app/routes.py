@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, session, flash, url_for, send_file
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from sqlalchemy.orm.attributes import flag_modified  # <--- NEW IMPORT
+from sqlalchemy.orm.attributes import flag_modified
 from io import BytesIO
 import pypdf
 from datetime import datetime
@@ -65,7 +65,6 @@ def register():
             return redirect('/register')
 
         role = request.form['role']
-        # Handle Teacher Initial Class
         assigned_classes = []
         if role == 'teacher' and request.form.get('class_name'):
             assigned_classes.append({
@@ -102,30 +101,20 @@ def update_teacher_profile():
     if session.get('role') != 'teacher': return redirect('/login')
     teacher = User.query.get(session['user_id'])
 
-    # Update Basic Info
     teacher.email = request.form.get('email')
     teacher.subject = request.form.get('subject')
     teacher.bio = request.form.get('bio')
 
-    # Update Classes (CRITICAL FIX)
     new_class = request.form.get('new_class_name')
     new_div = request.form.get('new_division')
 
     if new_class and new_div:
         cls_obj = {"class_name": new_class.strip().upper(), "division": new_div.strip().upper()}
-
-        # Initialize if None
-        if teacher.assigned_classes is None:
-            teacher.assigned_classes = []
-
-        # Create a COPY of the list to ensure SQLAlchemy detects change
+        if teacher.assigned_classes is None: teacher.assigned_classes = []
         current_list = list(teacher.assigned_classes)
         current_list.append(cls_obj)
         teacher.assigned_classes = current_list
-
-        # FORCE UPDATE FLAG
         flag_modified(teacher, "assigned_classes")
-
         flash(f"Class {cls_obj['class_name']} added!", "success")
 
     db.session.commit()
@@ -137,7 +126,6 @@ def create_assignment():
     if session.get('role') != 'teacher': return redirect('/login')
 
     if request.method == 'POST':
-        # Create Assignment
         file = request.files.get('questionnaire_file')
         key_text = request.form.get('ai_generated_key')
 
@@ -179,6 +167,29 @@ def view_assignments():
     return render_template('view_assignments.html', assignments=assignments)
 
 
+@routes.route('/teacher/assignments/<int:assignment_id>/edit', methods=['GET', 'POST'])
+def edit_assignment(assignment_id):
+    if session.get('role') != 'teacher': return redirect('/login')
+    assignment = Assignment.query.get_or_404(assignment_id)
+    if request.method == 'POST':
+        assignment.title = request.form.get('title')
+        assignment.class_name = request.form.get('class_name')
+        assignment.division = request.form.get('division')
+        assignment.subject_name = request.form.get('subject_name')
+        db.session.commit()
+        flash("Updated!", "success")
+        return redirect('/teacher/assignments')
+    return render_template('edit_assignment.html', assignment=assignment)
+
+
+@routes.route('/teacher/assignments/<int:assignment_id>/submissions')
+def view_submissions(assignment_id):
+    if session.get('role') != 'teacher': return redirect('/login')
+    assignment = Assignment.query.get_or_404(assignment_id)
+    submissions = Submission.query.filter_by(assignment_id=assignment_id).all()
+    return render_template('view_submissions.html', assignment=assignment, submissions=submissions)
+
+
 @routes.route('/teacher/delete-assignment/<int:id>', methods=['POST'])
 def delete_assignment(id):
     if session.get('role') != 'teacher': return redirect('/login')
@@ -196,7 +207,6 @@ def teacher_attendance():
 
     cls = request.args.get('class_name')
     div = request.args.get('div')
-
     students = []
     if cls and div:
         students = User.query.filter_by(role='student', class_name=cls, division=div).all()
@@ -228,7 +238,6 @@ def student_dashboard():
         file = request.files.get('student_answer')
         assign = Assignment.query.get(aid)
 
-        # AI Grading
         student_text = extract_text_from_file(file)
         score, feedback = compute_score(student_text, assign.answer_key_content)
 
