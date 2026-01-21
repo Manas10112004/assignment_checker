@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>View Submissions</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-6">
+    <div class="max-w-4xl mx-auto bg-white p-6 rounded-lg shadow">
+        <h2 class="text-2xl font-bold mb-4">Submissions for "{{ assignment.title }}"</h2>
+
+        {% if submissions %}
+            <table class="w-full border">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="p-2 text-left">Student Name</th>
+                        <th class="p-2 text-left">Roll No</th>
+                        <th class="p-2 text-left">Score</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sub in submissions %}
+                        <tr class="border-t">
+                            <td class="p-2">{{ sub.student.username }}</td>
+                            <td class="p-2">{{ sub.student.roll_no or '-' }}</td>
+                            <td class="p-2">{{ sub.score if sub.score is not none else 'Pending' }}%</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No submissions yet.</p>
+        {% endif %}
+    </div>
+</body>
+</html>

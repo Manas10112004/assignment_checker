@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Edit Assignment</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="flex bg-gray-100 min-h-screen">
+
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white shadow-lg p-6">
+        <div class="text-2xl font-bold mb-6 border-b pb-4">Teacher Panel</div>
+        <nav class="space-y-4">
+            <a href="{{ url_for('routes.teacher_dashboard') }}" class="block text-gray-700 hover:text-blue-500">Dashboard</a>
+            <a href="{{ url_for('routes.create_assignment') }}" class="block text-gray-700 hover:text-blue-500">Create Assignment</a>
+            <a href="{{ url_for('routes.view_assignments') }}" class="block text-blue-600 font-semibold">View Assignments</a>
+            <a href="{{ url_for('routes.logout') }}" class="block text-red-600 hover:text-red-800">Logout</a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-10">
+        <div class="max-w-3xl mx-auto bg-white p-8 rounded-lg shadow-md">
+            <h2 class="text-2xl font-bold mb-6 text-center">Edit Assignment</h2>
+
+            <form method="POST" enctype="multipart/form-data" class="space-y-4">
+                <div>
+                    <label class="block font-medium">Assignment Title</label>
+                    <input type="text" name="title" value="{{ assignment.title }}" required
+                        class="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400">
+                </div>
+
+                <div>
+                    <label class="block font-medium">Class</label>
+                    <input type="text" name="class_name" value="{{ assignment.class_name }}" required
+                        class="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400">
+                </div>
+
+                <div>
+                    <label class="block font-medium">Division</label>
+                    <input type="text" name="division" value="{{ assignment.division }}" required
+                        class="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400">
+                </div>
+
+                <div>
+                    <label class="block font-medium">Subject</label>
+                    <input type="text" name="subject_name" value="{{ assignment.subject_name }}" required
+                        class="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400">
+                </div>
+
+                <div>
+                    <label class="block font-medium">Teacher Name</label>
+                    <input type="text" name="teacher_name" value="{{ assignment.teacher_name }}" required
+                        class="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400">
+                </div>
+
+                <!-- Answer Key -->
+                <div>
+                    <label class="block font-medium">Answer Key (PDF, DOCX, TXT)</label>
+                    <input type="file" name="answer_key" accept=".pdf,.doc,.docx,.txt"
+                        class="w-full border border-gray-300 px-3 py-2 rounded-lg">
+                    {% if assignment.answer_key %}
+                        <p class="text-sm text-gray-500 mt-1">
+                            Current file: {{ assignment.answer_key.split('/')[-1] }}
+                            • <a href="{{ url_for('static', filename='uploads/' ~ assignment.answer_key) }}" target="_blank" class="text-blue-600 underline">View</a>
+                        </p>
+                    {% endif %}
+                </div>
+
+                <!-- Questionnaire File -->
+                <div>
+                    <label class="block font-medium">Questionnaire File (PDF, DOCX, TXT)</label>
+                    <input type="file" name="questionnaire_file" accept=".pdf,.doc,.docx,.txt"
+                        class="w-full border border-gray-300 px-3 py-2 rounded-lg">
+                    {% if assignment.questionnaire_file %}
+                        <p class="text-sm text-gray-500 mt-1">
+                            Current file: {{ assignment.questionnaire_file.split('/')[-1] }}
+                            • <a href="{{ url_for('static', filename='uploads/' ~ assignment.questionnaire_file) }}" target="_blank" class="text-blue-600 underline">View</a>
+                        </p>
+                    {% endif %}
+                </div>
+
+                <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
+                    Save Changes
+                </button>
+            </form>
+        </div>
+    </main>
+</body>
+</html>

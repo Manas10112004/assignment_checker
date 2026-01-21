@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Teacher Profile</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+  <div class="flex min-h-screen">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white shadow-md hidden md:block">
+      <div class="p-6 text-center border-b">
+        <h2 class="text-xl font-bold text-blue-600">Teacher Panel</h2>
+        <p class="text-sm text-gray-600 mt-1">Welcome, <strong>{{ teacher.username }}</strong></p>
+      </div>
+      <nav class="p-4 space-y-2">
+        <a href="/teacher/profile" class="block py-2 px-4 rounded bg-blue-100 text-blue-700 font-semibold">Profile</a>
+        <a href="/teacher/create-assignment" class="block py-2 px-4 rounded hover:bg-blue-100 text-gray-700">Create Assignment</a>
+        <a href="/teacher/view-classes" class="block py-2 px-4 rounded hover:bg-blue-100 text-gray-700">View Class</a>
+        <a href="/logout" class="block py-2 px-4 rounded hover:bg-red-100 text-red-500 font-medium">Logout</a>
+      </nav>
+    </aside>
+
+    <!-- Profile Section -->
+    <main class="flex-1 p-8 overflow-y-auto">
+      <div class="max-w-3xl mx-auto bg-white p-8 rounded-lg shadow-md">
+        <h2 class="text-2xl font-bold mb-6 text-center text-blue-700">Teacher Profile</h2>
+
+        <!-- Profile Image Upload -->
+        <form method="POST" action="/teacher/upload-photo" enctype="multipart/form-data">
+          <div class="flex flex-col items-center mb-6">
+            <div class="w-32 h-32 bg-gray-200 rounded-full overflow-hidden border-4 border-white shadow-md mb-2">
+              <img id="profilePreview" src="{{ teacher.image_url }}?v={{ now.timestamp() }}" alt="Profile Picture" class="w-full h-full object-cover">
+            </div>
+            <div class="flex space-x-4">
+              <button type="button" onclick="document.getElementById('imageModal').classList.remove('hidden')" class="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300">Edit</button>
+              <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Save Photo</button>
+            </div>
+            <input type="hidden" name="cropped_image" id="croppedImageInput">
+          </div>
+        </form>
+
+        <!-- Editable Info -->
+        <form method="POST" action="/teacher/update-profile" class="space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Email</label>
+              <input type="email" name="email" value="{{ teacher.email or '' }}" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Subject</label>
+              <input type="text" name="subject" value="{{ teacher.subject or '' }}" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Class</label>
+              <input type="text" name="class_name" value="{{ teacher.class_name or '' }}" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Division</label>
+              <input type="text" name="division" value="{{ teacher.division or '' }}" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Bio</label>
+            <textarea name="bio" rows="4" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">{{ teacher.bio or '' }}</textarea>
+          </div>
+          <div class="text-right">
+            <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <!-- Cropper Modal -->
+  <div id="imageModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg p-6 max-w-lg w-full relative">
+      <h3 class="text-lg font-semibold mb-4 text-center">Crop Your Image</h3>
+      <input type="file" id="imageInput" accept="image/*" class="mb-4 w-full border p-2" onchange="loadImage(event)">
+      <div class="w-full h-64 overflow-hidden mb-4">
+        <img id="imageCropArea" class="max-h-64 block mx-auto">
+      </div>
+      <div class="flex justify-end space-x-3">
+        <button onclick="closeCropper()" class="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
+        <button onclick="cropImage()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Crop & Set</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let cropper;
+    function loadImage(event) {
+      const image = document.getElementById('imageCropArea');
+      const file = event.target.files[0];
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        image.src = e.target.result;
+        if (cropper) cropper.destroy();
+        cropper = new Cropper(image, { aspectRatio: 1, viewMode: 1 });
+      }
+      if (file) reader.readAsDataURL(file);
+    }
+
+    function cropImage() {
+      if (!cropper) return;
+      const canvas = cropper.getCroppedCanvas({ width: 300, height: 300 });
+      const dataUrl = canvas.toDataURL('image/png');
+      document.getElementById('profilePreview').src = dataUrl + '?v=' + new Date().getTime();
+      document.getElementById('croppedImageInput').value = dataUrl;
+      closeCropper();
+    }
+
+    function closeCropper() {
+      if (cropper) {
+        cropper.destroy();
+        cropper = null;
+      }
+      document.getElementById('imageInput').value = '';
+      document.getElementById('imageModal').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Assigned Assignments</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex min-h-screen">
+
+    <!-- Sidebar -->
+    <div class="w-64 bg-white shadow-lg p-6">
+        <h2 class="text-xl font-bold mb-6 text-center">Student Panel</h2>
+        <ul class="space-y-4">
+            <li><a href="{{ url_for('routes.student_dashboard') }}" class="block hover:text-blue-500">Profile</a></li>
+            <li><a href="{{ url_for('routes.student_assignments') }}" class="block text-blue-600 font-semibold">View Assignments</a></li>
+            <li><a href="{{ url_for('routes.logout') }}" class="block hover:text-red-600">Logout</a></li>
+        </ul>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 p-8">
+        <div class="max-w-5xl mx-auto bg-white p-8 rounded-lg shadow-md">
+            <h2 class="text-2xl font-bold mb-6 text-center">Assigned Assignments</h2>
+
+            {% for a in assignments %}
+                <div class="bg-gray-50 border border-gray-300 p-4 rounded mb-4">
+                    <p class="font-semibold text-lg">{{ a.title }}</p>
+                    <p class="text-sm text-gray-600">Class: {{ a.class_name }} | Division: {{ a.division }}</p>
+                    <p class="text-sm text-gray-600">Subject: {{ a.subject_name }} | Teacher: {{ a.teacher_name }}</p>
+
+                    <div class="mt-2 flex flex-wrap items-center space-x-4">
+                        <form method="GET" action="{{ url_for('routes.download_assignment', assignment_id=a.id) }}">
+                            <button type="submit" class="text-blue-600 hover:underline">Download</button>
+                        </form>
+
+                        {% if a.id in submitted_ids %}
+                            <span class="text-green-700 font-semibold">Submitted</span>
+                            <span class="text-gray-600">Score: {{ score_map[a.id] }}%</span>
+                        {% else %}
+                            <form method="POST" action="{{ url_for('routes.student_dashboard') }}" enctype="multipart/form-data" class="flex items-center space-x-2">
+                                <input type="hidden" name="assignment_id" value="{{ a.id }}">
+                                <input type="file" name="student_answer" required class="text-sm">
+                                <button type="submit" class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">Submit</button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+</body>
+</html>
