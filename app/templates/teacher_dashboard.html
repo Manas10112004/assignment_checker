@@ -8,41 +8,28 @@
 </head>
 <body class="bg-gray-100 font-sans flex min-h-screen">
 
-    <aside class="w-64 bg-slate-800 text-white flex flex-col shadow-lg fixed h-full z-10">
+    <aside class="w-64 bg-slate-800 text-white flex flex-col shadow-lg fixed h-full">
       <div class="p-6 text-center border-b border-slate-700">
-        <div class="w-16 h-16 bg-purple-500 rounded-full mx-auto mb-3 flex items-center justify-center text-2xl font-bold border-2 border-white">
-            {{ teacher.username[0] | upper }}
-        </div>
         <h2 class="text-lg font-bold">{{ teacher.username }}</h2>
-        <span class="text-xs bg-yellow-500 text-black px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Teacher</span>
+        <span class="text-xs bg-yellow-500 text-black px-2 py-1 rounded-full">Teacher</span>
       </div>
       <nav class="flex-1 p-4 space-y-2">
-        <a href="/teacher/dashboard" class="block py-2.5 px-4 rounded bg-slate-700 text-white font-medium border-l-4 border-blue-400">
-            <i class="fas fa-user-circle w-5 mr-2"></i> Profile
-        </a>
-        <a href="/teacher/create-assignment" class="block py-2.5 px-4 rounded hover:bg-slate-700 text-gray-300 hover:text-white transition">
-            <i class="fas fa-plus-circle w-5 mr-2"></i> Create Assignment
-        </a>
-        <a href="/teacher/assignments" class="block py-2.5 px-4 rounded hover:bg-slate-700 text-gray-300 hover:text-white transition">
-            <i class="fas fa-list w-5 mr-2"></i> View Assignments
-        </a>
-        <a href="/teacher/attendance" class="block py-2.5 px-4 rounded hover:bg-slate-700 text-green-400 hover:text-green-300 transition">
-            <i class="fas fa-clipboard-check w-5 mr-2"></i> Mark Attendance
-        </a>
-        <a href="/logout" class="block py-2.5 px-4 rounded hover:bg-red-600 text-gray-300 hover:text-white mt-8 transition">
-            <i class="fas fa-sign-out-alt w-5 mr-2"></i> Logout
-        </a>
+        <a href="/teacher/dashboard" class="block py-2 px-4 rounded bg-slate-700">Profile</a>
+        <a href="/teacher/create-assignment" class="block py-2 px-4 rounded hover:bg-slate-700">Create Assignment</a>
+        <a href="/teacher/assignments" class="block py-2 px-4 rounded hover:bg-slate-700">View Assignments</a>
+        <a href="/teacher/attendance" class="block py-2 px-4 rounded hover:bg-slate-700 text-green-400">Mark Attendance</a>
+        <a href="/logout" class="block py-2 px-4 rounded hover:bg-red-600 mt-8">Logout</a>
       </nav>
     </aside>
 
-    <main class="flex-1 p-8 ml-64">
+    <main class="flex-1 p-8 ml-64 overflow-y-auto">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <div class="mb-6 space-y-2">
                     {% for category, message in messages %}
-                        <div class="p-4 rounded shadow-sm border-l-4
-                                    {% if category == 'success' %} bg-green-100 border-green-500 text-green-800
-                                    {% else %} bg-blue-100 border-blue-500 text-blue-800 {% endif %}">
+                        <div class="p-3 rounded text-white font-bold
+                                    {% if category == 'success' %} bg-green-500
+                                    {% else %} bg-blue-500 {% endif %}">
                             {{ message }}
                         </div>
                     {% endfor %}
@@ -50,71 +37,38 @@
             {% endif %}
         {% endwith %}
 
-        <h1 class="text-3xl font-bold text-gray-800 mb-8">Dashboard Overview</h1>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div class="bg-white p-6 rounded-xl shadow border-t-4 border-blue-500">
-                <h3 class="text-lg font-bold text-gray-700 mb-3"><i class="fas fa-chalkboard-teacher mr-2 text-blue-500"></i>Assigned Classes</h3>
-                <div class="flex flex-wrap gap-2">
-                    {% if teacher.assigned_classes %}
-                        {% for c in teacher.assigned_classes %}
-                            <span class="bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full text-sm font-semibold">
-                                {{ c.class_name }} - {{ c.division }}
-                            </span>
-                        {% endfor %}
-                    {% else %}
-                        <span class="text-gray-400 italic">No classes assigned yet.</span>
-                    {% endif %}
-                </div>
-            </div>
-
-            <div class="bg-white p-6 rounded-xl shadow border-t-4 border-green-500">
-                <h3 class="text-lg font-bold text-gray-700 mb-3"><i class="fas fa-bolt mr-2 text-green-500"></i>Quick Actions</h3>
-                <div class="flex space-x-4">
-                    <a href="/teacher/create-assignment" class="flex-1 bg-blue-600 text-white text-center py-2 rounded hover:bg-blue-700 transition">
-                        New Assignment
-                    </a>
-                    <a href="/teacher/attendance" class="flex-1 bg-green-600 text-white text-center py-2 rounded hover:bg-green-700 transition">
-                        Take Attendance
-                    </a>
-                </div>
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold mb-4">Assigned Classes</h2>
+            <div class="flex flex-wrap gap-2">
+                {% if teacher.assigned_classes %}
+                    {% for c in teacher.assigned_classes %}
+                        <span class="bg-blue-100 text-blue-800 border border-blue-200 px-3 py-1 rounded text-sm font-bold">
+                            {{ c.class_name }} - {{ c.division }}
+                        </span>
+                    {% endfor %}
+                {% else %}
+                    <span class="text-red-500 font-bold italic">No classes assigned. Use the form below to add one!</span>
+                {% endif %}
             </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow p-8">
-            <h2 class="text-2xl font-bold mb-6 text-gray-800">Profile Settings</h2>
-            <form method="POST" action="/teacher/update-profile" class="space-y-6">
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                        <input type="email" name="email" value="{{ teacher.email or '' }}" placeholder="teacher@example.com"
-                               class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Main Subject</label>
-                        <input type="text" name="subject" value="{{ teacher.subject or '' }}" placeholder="e.g. Mathematics"
-                               class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
-                    </div>
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-bold mb-4">Update Profile & Add Classes</h2>
+            <form method="POST" action="/teacher/update-profile" class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="email" name="email" value="{{ teacher.email or '' }}" placeholder="Email" class="p-2 border rounded">
+                    <input type="text" name="subject" value="{{ teacher.subject or '' }}" placeholder="Subject" class="p-2 border rounded">
                 </div>
+                <textarea name="bio" rows="2" placeholder="Bio" class="w-full p-2 border rounded">{{ teacher.bio or '' }}</textarea>
 
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Bio</label>
-                    <textarea name="bio" rows="3" placeholder="Tell students about yourself..."
-                              class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">{{ teacher.bio or '' }}</textarea>
-                </div>
-
-                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <h3 class="font-bold text-gray-700 mb-3 text-sm uppercase">Add New Class to Manage</h3>
-                    <div class="flex gap-3">
-                        <input type="text" name="new_class_name" placeholder="Class (e.g. SY-CS)" class="flex-1 p-2 border rounded focus:outline-blue-500">
-                        <input type="text" name="new_division" placeholder="Div" class="w-20 p-2 border rounded focus:outline-blue-500 text-center uppercase">
-                        <button type="submit" class="bg-gray-800 text-white px-6 py-2 rounded font-bold hover:bg-gray-900 transition">
-                            <i class="fas fa-plus mr-2"></i>Add & Save
-                        </button>
+                <div class="bg-yellow-50 p-4 border border-yellow-200 rounded mt-4">
+                    <h3 class="font-bold mb-2 text-sm text-yellow-800">ADD NEW CLASS (Required for Attendance)</h3>
+                    <div class="flex gap-2">
+                        <input type="text" name="new_class_name" placeholder="Class Name (e.g. TY-CS)" class="p-2 border rounded flex-1">
+                        <input type="text" name="new_division" placeholder="Division (e.g. A)" class="p-2 border rounded w-24 text-center">
+                        <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded font-bold hover:bg-green-700">Add Class</button>
                     </div>
                 </div>
-
             </form>
         </div>
     </main>
