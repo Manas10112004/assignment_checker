@@ -51,10 +51,10 @@
         </div>
 
         <form id="real-form" action="/teacher/create-assignment" method="POST" enctype="multipart/form-data" class="hidden">
-            <input type="text" name="title" id="real-title">
-            <input type="text" name="class_name" id="real-class">
-            <input type="text" name="division" id="real-div">
-            <input type="text" name="subject_name" id="real-subject">
+            <input type="text" name="title" id="real-title" required>
+            <input type="text" name="class_name" id="real-class" required>
+            <input type="text" name="division" id="real-div" required>
+            <input type="text" name="subject_name" id="real-subject" required>
             <input type="file" name="questionnaire_file" id="real-file">
             <textarea name="ai_generated_key" id="real-key"></textarea>
         </form>
@@ -105,18 +105,16 @@
 
             if(!t || !c || !d || !s) return alert("Please fill all fields.");
 
-            // Transfer to real form
             document.getElementById('real-title').value = t;
             document.getElementById('real-class').value = c;
             document.getElementById('real-div').value = d;
             document.getElementById('real-subject').value = s;
 
-            // Update UI
             document.getElementById('metadata-form-container').classList.add('hidden');
             addMessage(`<p><strong>Metadata Set:</strong> ${t} (${c}-${d})</p>`, true);
 
             setTimeout(() => {
-                addMessage(`<p><strong><i class="fas fa-robot mr-2"></i>AI Assistant:</strong></p><p>Great! Now upload the Questionnaire (PDF/TXT/Image).</p>`);
+                addMessage(`<p><strong><i class="fas fa-robot mr-2"></i>AI Assistant:</strong></p><p>Great! Now upload the Questionnaire.</p>`);
                 document.getElementById('action-area').classList.remove('hidden');
             }, 500);
         }
@@ -126,7 +124,6 @@
                 const file = input.files[0];
                 document.getElementById('upload-text').innerHTML = `<i class="fas fa-file-alt text-blue-500 mr-2"></i> ${file.name}`;
 
-                // Clone file to real form
                 const dataTransfer = new DataTransfer();
                 dataTransfer.items.add(file);
                 document.getElementById('real-file').files = dataTransfer.files;
@@ -155,7 +152,7 @@
                 document.getElementById('real-key').value = data.key;
                 document.getElementById('ai-preview').classList.remove('hidden');
 
-                addMessage(`<p><strong><i class="fas fa-robot mr-2"></i>AI Assistant:</strong></p><p>I have generated the answer key! Review it below, then click Finish.</p>`);
+                addMessage(`<p><strong><i class="fas fa-robot mr-2"></i>AI Assistant:</strong></p><p>Key generated! Click Finish to save.</p>`);
 
             } catch (e) {
                 alert("AI Error: " + e.message);
@@ -166,6 +163,14 @@
         }
 
         function submitAssignment() {
+            // DEBUG: Check if data exists before submitting
+            const title = document.getElementById('real-title').value;
+            const cls = document.getElementById('real-class').value;
+
+            if(!title || !cls) {
+                alert("Error: Assignment details are missing. Please refresh and fill the form again.");
+                return;
+            }
             document.getElementById('real-form').submit();
         }
     </script>
