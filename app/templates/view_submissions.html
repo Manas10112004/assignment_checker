@@ -8,8 +8,8 @@
 </head>
 <body class="bg-gray-100 font-sans min-h-screen p-8">
 
-    <div class="max-w-6xl mx-auto">
-        <div class="flex justify-between items-center mb-6">
+    <div class="max-w-7xl mx-auto">
+        <div class="flex justify-between items-center mb-8">
             <div>
                 <h2 class="text-3xl font-bold text-gray-800">Submissions: {{ assignment.title }}</h2>
                 <p class="text-gray-600 mt-1">{{ assignment.class_name }} - {{ assignment.division }} | {{ assignment.subject_name }}</p>
@@ -25,4 +25,55 @@
                     <thead class="bg-gray-50 border-b border-gray-200">
                         <tr>
                             <th class="p-4 font-semibold text-gray-600">Roll No</th>
-                
+                            <th class="p-4 font-semibold text-gray-600">Student Name</th>
+                            <th class="p-4 font-semibold text-gray-600">Date</th>
+                            <th class="p-4 font-semibold text-gray-600 text-center">AI Score</th>
+                            <th class="p-4 font-semibold text-gray-600">Detailed Feedback</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        {% for sub in submissions %}
+                        <tr class="hover:bg-gray-50 transition">
+                            <td class="p-4 text-gray-700 font-medium">{{ sub.student.roll_no }}</td>
+                            <td class="p-4 text-gray-800 font-bold">{{ sub.student.username }}</td>
+                            <td class="p-4 text-gray-500 text-sm">{{ sub.submission_date.strftime('%Y-%m-%d %H:%M') }}</td>
+
+                            <td class="p-4 text-center">
+                                <span class="px-3 py-1 rounded-full font-bold text-sm
+                                    {% if sub.score >= 80 %} bg-green-100 text-green-800
+                                    {% elif sub.score >= 50 %} bg-yellow-100 text-yellow-800
+                                    {% else %} bg-red-100 text-red-800 {% endif %}">
+                                    {{ sub.score }}%
+                                </span>
+                            </td>
+
+                            <td class="p-4">
+                                {% if sub.detailed_feedback %}
+                                    <div class="text-sm bg-gray-50 p-2 rounded border border-gray-200">
+                                        {% for k, v in sub.detailed_feedback.items() %}
+                                            <div class="mb-1">
+                                                <span class="font-semibold text-gray-700">{{ k }}:</span>
+                                                <span class="text-gray-600">{{ v }}</span>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <span class="text-gray-400 italic">No feedback generated</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-20 bg-white rounded-lg shadow">
+                <div class="text-gray-300 text-6xl mb-4"><i class="fas fa-inbox"></i></div>
+                <h3 class="text-xl font-bold text-gray-600">No submissions yet</h3>
+                <p class="text-gray-500">Students have not uploaded their work for this assignment.</p>
+            </div>
+        {% endif %}
+    </div>
+
+</body>
+</html>

@@ -4,15 +4,28 @@
   <meta charset="UTF-8">
   <title>AI Assignment Evaluator</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center text-gray-800">
-  {% with messages = get_flashed_messages() %}
+<body class="bg-gray-100 min-h-screen text-gray-800 font-sans">
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
-      <div class="fixed top-4 bg-red-100 text-red-800 px-4 py-2 rounded shadow">
-        {{ messages[0] }}
+      <div class="fixed top-5 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-lg">
+        {% for category, message in messages %}
+          <div class="mb-2 px-4 py-3 rounded shadow-lg flex items-center justify-between
+                      {% if category == 'success' %} bg-green-100 text-green-800 border-l-4 border-green-500
+                      {% elif category == 'danger' %} bg-red-100 text-red-800 border-l-4 border-red-500
+                      {% else %} bg-blue-100 text-blue-800 border-l-4 border-blue-500 {% endif %}">
+            <span>{{ message }}</span>
+            <button onclick="this.parentElement.remove()" class="text-xl font-bold">&times;</button>
+          </div>
+        {% endfor %}
       </div>
     {% endif %}
   {% endwith %}
+
   {% block content %}{% endblock %}
+
 </body>
 </html>
