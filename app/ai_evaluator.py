@@ -1,11 +1,15 @@
 import os
 import json
 from groq import Groq
+# Import our new local engine
+from app.ocr_service import extract_text_local
+
 
 def get_groq_client():
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key: return None
     return Groq(api_key=api_key)
+
 
 def generate_answer_key(question_text):
     client = get_groq_client()
@@ -20,9 +24,29 @@ def generate_answer_key(question_text):
     except Exception as e:
         return f"Error: {str(e)}"
 
-def compute_score(student_text, answer_key):
+
+def compute_score(student_input, answer_key, is_image=False):
+    """
+    Grading Logic:
+    1. If input is an image, use Local OCR to get text.
+    2. If input is text, use it directly.
+    3. Send TEXT to Llama 3 for grading.
+    """
     client = get_groq_client()
     if not client: return 0, {"Error": "AI unavailable"}
+
+    student_text = ""
+
+    if is_image:
+        # --- THE FIX: USE LOCAL OCR ---
+        print("Using Local OCR Engine...")
+        student_text = extract_text_local(student_input)
+        if not student_text.strip():
+            return 0, {"Error": "OCR failed. Could not read handwriting."}
+    else:
+        student_text = student_input
+
+    # Now we just grade the text (No Rate Limits!)
     prompt = f"""
     Compare Student Answer to Answer Key.
     Key: {answer_key}
@@ -37,5 +61,6 @@ def compute_score(student_text, answer_key):
         )
         data = json.loads(completion.choices[0].message.content)
         return data.get("score", 0), data.get("feedback", {})
-    except:
+    except Exception as e:
+        print(f"AI Grading Error: {e}")
         return 0, {"Error": "Grading failed"}
