@@ -25,7 +25,7 @@ def extract_text_from_file(file_storage):
             for page in pdf_reader.pages:
                 extracted = page.extract_text()
                 if extracted: text += extracted + "\n"
-            if len(text.strip()) < 10:  # Scanned PDF Check
+            if len(text.strip()) < 10:
                 file_storage.seek(0)
                 images = convert_from_bytes(file_storage.read())
                 for img in images:
@@ -59,8 +59,8 @@ def home(): return redirect('/login')
 @routes.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        username = request.form.get('username')
+        password = request.form.get('password')
 
         # Admin Backdoor
         if username == 'admin' and password == 'admin123':
@@ -96,11 +96,11 @@ def logout():
 @routes.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        if User.query.filter_by(username=request.form['username']).first():
+        if User.query.filter_by(username=request.form.get('username')).first():
             flash('Username taken', 'danger')
             return redirect('/register')
 
-        role = request.form['role']
+        role = request.form.get('role')
         assigned_classes = []
         if role == 'teacher' and request.form.get('class_name'):
             assigned_classes.append({
@@ -109,8 +109,8 @@ def register():
             })
 
         user = User(
-            username=request.form['username'],
-            password_hash=generate_password_hash(request.form['password']),
+            username=request.form.get('username'),
+            password_hash=generate_password_hash(request.form.get('password')),
             role=role,
             class_name=request.form.get('class_name'),
             division=request.form.get('division'),
@@ -199,10 +199,10 @@ def create_assignment():
             key_text = request.form.get('ai_generated_key')
 
             new_assign = Assignment(
-                title=request.form['title'],
-                class_name=request.form['class_name'].strip().upper(),
-                division=request.form['division'].strip().upper(),
-                subject_name=request.form['subject_name'],
+                title=request.form.get('title'),
+                class_name=request.form.get('class_name').strip().upper(),
+                division=request.form.get('division').strip().upper(),
+                subject_name=request.form.get('subject_name'),
                 teacher_name=teacher.username,
                 teacher_id=teacher.id,
                 answer_key_content=key_text,
@@ -234,7 +234,6 @@ def view_assignments():
     return render_template('view_assignments.html', assignments=assignments)
 
 
-# --- STANDARDIZED ROUTE: Uses <int:id> ---
 @routes.route('/teacher/assignments/<int:id>/edit', methods=['GET', 'POST'])
 def edit_assignment(id):
     if session.get('role') != 'teacher': return redirect('/login')
@@ -250,7 +249,6 @@ def edit_assignment(id):
     return render_template('edit_assignment.html', assignment=assignment)
 
 
-# --- STANDARDIZED ROUTE: Uses <int:id> ---
 @routes.route('/teacher/assignments/<int:id>/submissions')
 def view_submissions(id):
     if session.get('role') != 'teacher': return redirect('/login')
@@ -259,7 +257,6 @@ def view_submissions(id):
     return render_template('view_submissions.html', assignment=assignment, submissions=submissions)
 
 
-# --- STANDARDIZED ROUTE: Uses <int:id> ---
 @routes.route('/teacher/delete-assignment/<int:id>', methods=['POST'])
 def delete_assignment(id):
     if session.get('role') != 'teacher': return redirect('/login')
@@ -270,29 +267,50 @@ def delete_assignment(id):
     return redirect('/teacher/assignments')
 
 
+# --- ATTENDANCE FIX (Crash Proof) ---
 @routes.route('/teacher/attendance', methods=['GET', 'POST'])
 def teacher_attendance():
     if session.get('role') != 'teacher': return redirect('/login')
     teacher = User.query.get(session['user_id'])
+
     cls = request.args.get('class_name')
     div = request.args.get('div')
     students = []
+
     if cls and div:
         students = User.query.filter_by(role='student', class_name=cls, division=div).all()
+
     if request.method == 'POST':
-        date = datetime.strptime(request.form['date'], '%Y-%m-%d').date()
-        subj = request.form['subject']
+        # Safely get data
+        date_str = request.form.get('date')
+        subject_name = request.form.get('subject')  # This was the cause of the 400 error
+
+        # Check if fields are missing
+        if not date_str or not subject_name:
+            flash("Error: You must provide both a Date and a Subject/Lecture name.", "danger")
+            return redirect(f"/teacher/attendance?class_name={cls}&div={div}")
+
+        date = datetime.strptime(date_str, '%Y-%m-%d').date()
+
         for student in students:
             status = request.form.get(f"status_{student.id}")
             if status:
-                rec = Attendance(date=date, lecture_subject=subj, status=status, student_id=student.id,
-                                 teacher_id=teacher.id, class_name=cls, division=div)
+                rec = Attendance(
+                    date=date,
+                    lecture_subject=subject_name,
+                    status=status,
+                    student_id=student.id,
+                    teacher_id=teacher.id,
+                    class_name=cls,
+                    division=div
+                )
                 db.session.add(rec)
         db.session.commit()
-        flash("Attendance Saved!", "success")
+        flash(f"Attendance for {subject_name} Saved!", "success")
         return redirect(f"/teacher/attendance?class_name={cls}&div={div}")
-    return render_template('teacher_attendance.html', teacher=teacher, students=students, selected_class=cls,
-                           selected_div=div, now=datetime.now())
+
+    return render_template('teacher_attendance.html', teacher=teacher, students=students,
+                           selected_class=cls, selected_div=div, now=datetime.now())
 
 
 # --- STUDENT ROUTES ---
