@@ -4,34 +4,25 @@ from werkzeug.utils import secure_filename
 from sqlalchemy.orm.attributes import flag_modified
 from io import BytesIO
 import pypdf
+from pdf2image import convert_from_bytes  # Critical for Scanned PDFs
 from datetime import datetime
-from pdf2image import convert_from_bytes
 
 # --- IMPORTS ---
 from app.models import db, User, Assignment, Submission, Attendance
-# Import the updated AI functions
+# Import AI functions
 from app.ai_evaluator import compute_score, generate_answer_key, extract_text_from_image
 
 routes = Blueprint('routes', __name__)
 
 
-# --- HELPER: Cloud-Based Text Extractor ---
-# ... (Keep existing imports)
-from io import BytesIO
-import pypdf
-from pdf2image import convert_from_bytes  # <--- NEW IMPORT
-
-
-# ... (Keep existing imports)
-
-# --- UPDATED HELPER: Smart PDF Handling ---
+# --- HELPER: Smart Text Extractor (Digital + Scanned) ---
 def extract_text_from_file(file_storage):
     filename = file_storage.filename.lower()
 
-    # 1. Handle PDFs (The Smart Way)
+    # 1. Handle PDFs (Smart Mode)
     if filename.endswith('.pdf'):
         try:
-            # First, try reading it as a normal digital PDF
+            # Try reading as digital PDF first
             pdf_reader = pypdf.PdfReader(file_storage)
             text = ""
             for page in pdf_reader.pages:
@@ -39,25 +30,18 @@ def extract_text_from_file(file_storage):
                 if extracted:
                     text += extracted + "\n"
 
-            # CRITICAL CHECK: If text is empty/too short, it's likely a SCANNED PDF
+            # If text is empty, it's a SCANNED PDF -> Switch to Vision
             if len(text.strip()) < 10:
-                print("PDF text is empty. Switching to Vision Mode (OCR)...")
-                file_storage.seek(0)  # Reset file pointer
-
-                # Convert PDF pages to Images
+                print("PDF text is empty. Switching to Vision Mode...")
+                file_storage.seek(0)
                 images = convert_from_bytes(file_storage.read())
 
-                # Send each page to Llama 4 Scout
                 for img in images:
-                    # Convert PIL Image to Bytes
                     img_byte_arr = BytesIO()
                     img.save(img_byte_arr, format='JPEG')
-                    img_bytes = img_byte_arr.getvalue()
+                    text += extract_text_from_image(img_byte_arr.getvalue()) + "\n"
 
-                    # Use Vision AI
-                    text += extract_text_from_image(img_bytes) + "\n"
-
-            file_storage.seek(0)  # Reset for safety
+            file_storage.seek(0)
             return text
         except Exception as e:
             print(f"PDF Error: {e}")
@@ -82,9 +66,6 @@ def extract_text_from_file(file_storage):
             return content
         except:
             return ""
-
-
-# ... (Keep the rest of your routes exactly the same)
 
 
 # --- AUTH ROUTES ---
@@ -179,7 +160,6 @@ def update_teacher_profile():
 def create_assignment():
     if session.get('role') != 'teacher': return redirect('/login')
 
-    # Ghost User Fix
     teacher = User.query.get(session.get('user_id'))
     if not teacher:
         session.clear()
@@ -311,26 +291,16 @@ def student_dashboard():
         file = request.files.get('student_answer')
         assign = Assignment.query.get(aid)
 
-        # 1. Read file logic
-        filename = file.filename.lower()
-        file_data = file.read()
+        # Smart Extract (Handles Scanned PDFs & Images)
+        student_text = extract_text_from_file(file)
 
-        # 2. Extract Text (Cloud AI or PDF Reader)
-        if filename.endswith(('.png', '.jpg', '.jpeg')):
-            student_text = extract_text_from_image(file_data)  # Uses Scout
-        elif filename.endswith('.pdf'):
-            student_text = extract_text_from_file(
-                file)  # Uses PyPDF (Re-read required if pointer moved, handled in helper)
-            if not student_text:  # Fallback for image-based PDFs could go here
-                student_text = ""
-        else:
-            student_text = file_data.decode('utf-8', errors='ignore')
-
-        # 3. Grade (Uses Maverick)
+        # Grade (Llama 4 Maverick)
         score, feedback = compute_score(student_text, assign.answer_key_content)
 
+        # Save Submission
+        file.seek(0)
         sub = Submission(assignment_id=aid, student_id=student.id,
-                         submitted_file=file_data, score=score, detailed_feedback=feedback)
+                         submitted_file=file.read(), score=score, detailed_feedback=feedback)
         db.session.add(sub)
         db.session.commit()
         flash(f"Graded: {score}%", "success")
@@ -352,3 +322,31 @@ def download_q(id):
     assign = Assignment.query.get_or_404(id)
     return send_file(BytesIO(assign.questionnaire_file), download_name=assign.questionnaire_filename,
                      as_attachment=True)
+
+
+# --- CHATBOT API ---
+@routes.route('/api/chat', methods=['POST'])
+def chat_api():
+    data = request.json
+    user_message = data.get('message', '')
+
+    if not user_message: return {"response": "I didn't hear anything!"}
+
+    from app.ai_evaluator import get_groq_client
+    client = get_groq_client()
+
+    if not client: return {"response": "Error: AI Brain is offline."}
+
+    try:
+        completion = client.chat.completions.create(
+            messages=[
+                {"role": "system",
+                 "content": "You are a helpful teaching assistant. Keep answers short and encouraging."},
+                {"role": "user", "content": user_message}
+            ],
+            model="llama-3.3-70b-versatile",
+        )
+        return {"response": completion.choices[0].message.content}
+    except Exception as e:
+        print(f"Chat Error: {e}")
+        return {"response": "Sorry, I'm having trouble thinking right now."}

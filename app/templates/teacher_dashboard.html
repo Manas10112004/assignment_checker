@@ -5,13 +5,19 @@
   <title>Teacher Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+      @keyframes slideUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+  </style>
 </head>
 <body class="bg-gray-100 font-sans flex min-h-screen">
 
-    <aside class="w-64 bg-slate-800 text-white flex flex-col shadow-lg fixed h-full">
+    <aside class="w-64 bg-slate-800 text-white flex flex-col shadow-lg fixed h-full z-10">
       <div class="p-6 text-center border-b border-slate-700">
         <h2 class="text-lg font-bold">{{ teacher.username }}</h2>
-        <span class="text-xs bg-yellow-500 text-black px-2 py-1 rounded-full">Teacher</span>
+        <span class="text-xs bg-yellow-500 text-black px-2 py-1 rounded-full">Teacher Panel</span>
       </div>
       <nav class="flex-1 p-4 space-y-2">
         <a href="/teacher/dashboard" class="block py-2 px-4 rounded bg-slate-700">Profile</a>
@@ -22,14 +28,12 @@
       </nav>
     </aside>
 
-    <main class="flex-1 p-8 ml-64 overflow-y-auto">
+    <main class="flex-1 p-10 ml-64 overflow-y-auto">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <div class="mb-6 space-y-2">
                     {% for category, message in messages %}
-                        <div class="p-3 rounded text-white font-bold
-                                    {% if category == 'success' %} bg-green-500
-                                    {% else %} bg-blue-500 {% endif %}">
+                        <div class="p-3 rounded text-white font-bold {{ 'bg-green-500' if category == 'success' else 'bg-blue-500' }}">
                             {{ message }}
                         </div>
                     {% endfor %}
@@ -37,8 +41,8 @@
             {% endif %}
         {% endwith %}
 
-        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 class="text-2xl font-bold mb-4">Assigned Classes</h2>
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6 border-l-4 border-blue-500">
+            <h2 class="text-2xl font-bold mb-4">Your Classes</h2>
             <div class="flex flex-wrap gap-2">
                 {% if teacher.assigned_classes %}
                     {% for c in teacher.assigned_classes %}
@@ -47,13 +51,13 @@
                         </span>
                     {% endfor %}
                 {% else %}
-                    <span class="text-red-500 font-bold italic">No classes assigned. Use the form below to add one!</span>
+                    <span class="text-red-500 font-bold italic">No classes yet. Add one below!</span>
                 {% endif %}
             </div>
         </div>
 
         <div class="bg-white rounded-lg shadow-md p-6">
-            <h2 class="text-xl font-bold mb-4">Update Profile & Add Classes</h2>
+            <h2 class="text-xl font-bold mb-4">Update Profile & Classes</h2>
             <form method="POST" action="/teacher/update-profile" class="space-y-4">
                 <div class="grid grid-cols-2 gap-4">
                     <input type="email" name="email" value="{{ teacher.email or '' }}" placeholder="Email" class="p-2 border rounded">
@@ -62,15 +66,96 @@
                 <textarea name="bio" rows="2" placeholder="Bio" class="w-full p-2 border rounded">{{ teacher.bio or '' }}</textarea>
 
                 <div class="bg-yellow-50 p-4 border border-yellow-200 rounded mt-4">
-                    <h3 class="font-bold mb-2 text-sm text-yellow-800">ADD NEW CLASS (Required for Attendance)</h3>
+                    <h3 class="font-bold mb-2 text-sm text-yellow-800">ADD NEW CLASS</h3>
                     <div class="flex gap-2">
-                        <input type="text" name="new_class_name" placeholder="Class Name (e.g. TY-CS)" class="p-2 border rounded flex-1">
-                        <input type="text" name="new_division" placeholder="Division (e.g. A)" class="p-2 border rounded w-24 text-center">
-                        <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded font-bold hover:bg-green-700">Add Class</button>
+                        <input type="text" name="new_class_name" placeholder="Class (e.g. TY-CS)" class="p-2 border rounded flex-1">
+                        <input type="text" name="new_division" placeholder="Div (e.g. A)" class="p-2 border rounded w-24 text-center">
+                        <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded font-bold hover:bg-green-700">Add</button>
                     </div>
                 </div>
             </form>
         </div>
     </main>
+
+    <div id="ai-widget" class="fixed bottom-6 right-6 z-50 flex items-center justify-center cursor-pointer transition-transform hover:scale-110" style="touch-action: none;">
+        <div class="bg-blue-600 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center border-2 border-white text-white">
+            <i class="fas fa-robot text-2xl"></i>
+        </div>
+    </div>
+
+    <div id="chat-window" class="fixed bottom-24 right-6 w-80 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 hidden flex-col overflow-hidden" style="height: 400px; animation: slideUp 0.3s ease-out;">
+        <div class="bg-blue-600 p-4 flex justify-between items-center text-white">
+            <h3 class="font-bold flex items-center gap-2"><i class="fas fa-brain"></i> AI Assistant</h3>
+            <button onclick="toggleChat()" class="hover:text-gray-200"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-3 bg-gray-50 text-sm">
+            <div class="flex gap-2">
+                <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 flex-shrink-0"><i class="fas fa-robot"></i></div>
+                <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-100 text-gray-700">Hello! I'm here to help you manage your classes.</div>
+            </div>
+        </div>
+        <div class="p-3 bg-white border-t flex gap-2">
+            <input type="text" id="chat-input" placeholder="Ask me anything..." class="flex-1 p-2 border rounded-lg focus:outline-none text-sm" onkeypress="if(event.key === 'Enter') sendMessage()">
+            <button onclick="sendMessage()" class="bg-blue-600 text-white px-3 rounded-lg hover:bg-blue-700"><i class="fas fa-paper-plane"></i></button>
+        </div>
+    </div>
+
+    <script>
+        const widget = document.getElementById('ai-widget');
+        const windowEl = document.getElementById('chat-window');
+        const msgsEl = document.getElementById('chat-messages');
+        const inputEl = document.getElementById('chat-input');
+        let isDragging = false, hasMoved = false, offsetX, offsetY;
+
+        widget.addEventListener('mousedown', startDrag);
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', endDrag);
+
+        function startDrag(e) {
+            isDragging = true; hasMoved = false;
+            const rect = widget.getBoundingClientRect();
+            offsetX = e.clientX - rect.left; offsetY = e.clientY - rect.top;
+            widget.style.transition = 'none';
+        }
+        function drag(e) {
+            if (!isDragging) return;
+            hasMoved = true;
+            widget.style.left = `${e.clientX - offsetX}px`;
+            widget.style.top = `${e.clientY - offsetY}px`;
+            widget.style.right = 'auto'; widget.style.bottom = 'auto';
+        }
+        function endDrag() {
+            isDragging = false; widget.style.transition = 'transform 0.2s';
+            if (!hasMoved) toggleChat();
+        }
+        function toggleChat() {
+            windowEl.classList.toggle('hidden'); windowEl.classList.toggle('flex');
+            if(!windowEl.classList.contains('hidden')) inputEl.focus();
+        }
+        async function sendMessage() {
+            const text = inputEl.value.trim();
+            if (!text) return;
+            addMessage(text, 'user'); inputEl.value = '';
+            const loadId = addMessage('Thinking...', 'bot', true);
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ message: text })
+                });
+                const data = await res.json();
+                document.getElementById(loadId).remove();
+                addMessage(data.response, 'bot');
+            } catch (e) { document.getElementById(loadId).remove(); addMessage("Error connecting.", 'bot'); }
+        }
+        function addMessage(text, sender, isLoading=false) {
+            const div = document.createElement('div');
+            const id = 'msg-' + Date.now(); div.id = id;
+            div.className = `flex gap-2 ${sender === 'user' ? 'flex-row-reverse' : ''}`;
+            const avatar = sender === 'bot' ? '<div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600"><i class="fas fa-robot"></i></div>' : '<div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600"><i class="fas fa-user"></i></div>';
+            div.innerHTML = `${avatar}<div class="${sender==='bot'?'bg-white':'bg-blue-600 text-white'} p-3 rounded-lg shadow-sm border max-w-[80%]">${isLoading?'<i class="fas fa-spinner fa-spin"></i> ':''}${text}</div>`;
+            msgsEl.appendChild(div); msgsEl.scrollTop = msgsEl.scrollHeight;
+            return id;
+        }
+    </script>
 </body>
 </html>
