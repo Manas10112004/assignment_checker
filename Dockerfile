@@ -1,6 +1,10 @@
 FROM python:3.9-slim
 
-# No Tesseract! Just pure Python.
+# Install poppler-utils (Critical for converting Scanned PDFs to Images)
+RUN apt-get update && apt-get install -y \
+    poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY requirements.txt .

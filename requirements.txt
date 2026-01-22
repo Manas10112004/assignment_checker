@@ -12,7 +12,7 @@ pdf2image
 Pillow
 flask
 sqlalchemy
-
+pdf2image
 
 
 

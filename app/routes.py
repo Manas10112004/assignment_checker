@@ -5,6 +5,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from io import BytesIO
 import pypdf
 from datetime import datetime
+from pdf2image import convert_from_bytes
 
 # --- IMPORTS ---
 from app.models import db, User, Assignment, Submission, Attendance
@@ -15,27 +16,59 @@ routes = Blueprint('routes', __name__)
 
 
 # --- HELPER: Cloud-Based Text Extractor ---
+# ... (Keep existing imports)
+from io import BytesIO
+import pypdf
+from pdf2image import convert_from_bytes  # <--- NEW IMPORT
+
+
+# ... (Keep existing imports)
+
+# --- UPDATED HELPER: Smart PDF Handling ---
 def extract_text_from_file(file_storage):
     filename = file_storage.filename.lower()
 
-    # 1. Handle PDFs
+    # 1. Handle PDFs (The Smart Way)
     if filename.endswith('.pdf'):
         try:
+            # First, try reading it as a normal digital PDF
             pdf_reader = pypdf.PdfReader(file_storage)
             text = ""
             for page in pdf_reader.pages:
-                text += page.extract_text() + "\n"
-            file_storage.seek(0)
+                extracted = page.extract_text()
+                if extracted:
+                    text += extracted + "\n"
+
+            # CRITICAL CHECK: If text is empty/too short, it's likely a SCANNED PDF
+            if len(text.strip()) < 10:
+                print("PDF text is empty. Switching to Vision Mode (OCR)...")
+                file_storage.seek(0)  # Reset file pointer
+
+                # Convert PDF pages to Images
+                images = convert_from_bytes(file_storage.read())
+
+                # Send each page to Llama 4 Scout
+                for img in images:
+                    # Convert PIL Image to Bytes
+                    img_byte_arr = BytesIO()
+                    img.save(img_byte_arr, format='JPEG')
+                    img_bytes = img_byte_arr.getvalue()
+
+                    # Use Vision AI
+                    text += extract_text_from_image(img_bytes) + "\n"
+
+            file_storage.seek(0)  # Reset for safety
             return text
-        except:
+        except Exception as e:
+            print(f"PDF Error: {e}")
             return ""
 
-    # 2. Handle Images (Send to Llama 4 Scout)
+    # 2. Handle Images (Direct Vision)
     elif filename.endswith(('.png', '.jpg', '.jpeg')):
         try:
             file_bytes = file_storage.read()
             text = extract_text_from_image(file_bytes)
-            file_storage.seek(0)  # Reset cursor
+            file_storage.seek(0)
             return text
         except Exception as e:
             print(f"Vision Error: {e}")
@@ -49,6 +82,9 @@ def extract_text_from_file(file_storage):
             return content
         except:
             return ""
+
+
+# ... (Keep the rest of your routes exactly the same)
 
 
 # --- AUTH ROUTES ---
