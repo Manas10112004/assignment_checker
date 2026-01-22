@@ -5,7 +5,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from io import BytesIO
 import pypdf
 from pdf2image import convert_from_bytes
-import uuid  # For unique tokens
+import uuid
 from datetime import datetime
 
 # --- IMPORTS ---
@@ -62,7 +62,7 @@ def login():
         username = request.form['username']
         password = request.form['password']
 
-        # --- 1. DEFAULT ADMIN BACKDOOR ---
+        # Admin Backdoor
         if username == 'admin' and password == 'admin123':
             admin = User.query.filter_by(username='admin').first()
             if not admin:
@@ -124,25 +124,19 @@ def register():
     return render_template('register.html')
 
 
-# --- FORGOT PASSWORD SYSTEM ---
 @routes.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'POST':
         username = request.form.get('username')
         user = User.query.filter_by(username=username).first()
-
         if user:
-            # Generate a secure token
             token = str(uuid.uuid4())
             user.reset_token = token
             db.session.commit()
-
-            # SIMULATION: Since we don't have an email server, we flash the link
             reset_link = url_for('routes.reset_password', token=token, _external=True)
-            flash(f"DEMO MODE: Password Reset Link (Click to Test): {reset_link}", "info")
+            flash(f"DEMO MODE: Password Reset Link: {reset_link}", "info")
         else:
             flash("User not found.", "danger")
-
     return render_template('forgot_password.html')
 
 
@@ -150,26 +144,16 @@ def forgot_password():
 def reset_password(token):
     user = User.query.filter_by(reset_token=token).first()
     if not user:
-        flash("Invalid or expired token.", "danger")
+        flash("Invalid token.", "danger")
         return redirect('/login')
-
     if request.method == 'POST':
         new_pass = request.form.get('password')
         user.password_hash = generate_password_hash(new_pass)
-        user.reset_token = None  # Invalidate token
+        user.reset_token = None
         db.session.commit()
-        flash("Password reset successful! Please login.", "success")
+        flash("Password reset successful!", "success")
         return redirect('/login')
-
     return render_template('reset_password.html')
-
-
-# --- ADMIN ROUTES ---
-@routes.route('/admin/dashboard')
-def admin_dashboard():
-    if session.get('role') != 'admin': return redirect('/login')
-    users = User.query.all()
-    return render_template('admin_dashboard.html', users=users)
 
 
 # --- TEACHER ROUTES ---
@@ -231,7 +215,6 @@ def create_assignment():
             return redirect('/teacher/assignments')
         except Exception as e:
             flash(f"Error: {e}", "danger")
-
     return render_template('create_assignment.html')
 
 
@@ -251,14 +234,32 @@ def view_assignments():
     return render_template('view_assignments.html', assignments=assignments)
 
 
-@routes.route('/teacher/assignments/<int:assignment_id>/submissions')
-def view_submissions(assignment_id):
+# --- STANDARDIZED ROUTE: Uses <int:id> ---
+@routes.route('/teacher/assignments/<int:id>/edit', methods=['GET', 'POST'])
+def edit_assignment(id):
     if session.get('role') != 'teacher': return redirect('/login')
-    assignment = Assignment.query.get_or_404(assignment_id)
-    submissions = Submission.query.filter_by(assignment_id=assignment_id).all()
+    assignment = Assignment.query.get_or_404(id)
+    if request.method == 'POST':
+        assignment.title = request.form.get('title')
+        assignment.class_name = request.form.get('class_name')
+        assignment.division = request.form.get('division')
+        assignment.subject_name = request.form.get('subject_name')
+        db.session.commit()
+        flash("Updated!", "success")
+        return redirect('/teacher/assignments')
+    return render_template('edit_assignment.html', assignment=assignment)
+
+
+# --- STANDARDIZED ROUTE: Uses <int:id> ---
+@routes.route('/teacher/assignments/<int:id>/submissions')
+def view_submissions(id):
+    if session.get('role') != 'teacher': return redirect('/login')
+    assignment = Assignment.query.get_or_404(id)
+    submissions = Submission.query.filter_by(assignment_id=id).all()
     return render_template('view_submissions.html', assignment=assignment, submissions=submissions)
 
 
+# --- STANDARDIZED ROUTE: Uses <int:id> ---
 @routes.route('/teacher/delete-assignment/<int:id>', methods=['POST'])
 def delete_assignment(id):
     if session.get('role') != 'teacher': return redirect('/login')
@@ -269,43 +270,29 @@ def delete_assignment(id):
     return redirect('/teacher/assignments')
 
 
-# --- UPDATED: LECTURE-WISE ATTENDANCE ---
 @routes.route('/teacher/attendance', methods=['GET', 'POST'])
 def teacher_attendance():
     if session.get('role') != 'teacher': return redirect('/login')
     teacher = User.query.get(session['user_id'])
-
     cls = request.args.get('class_name')
     div = request.args.get('div')
     students = []
-
     if cls and div:
         students = User.query.filter_by(role='student', class_name=cls, division=div).all()
-
     if request.method == 'POST':
-        date_str = request.form['date']
-        subject_name = request.form['subject']  # <--- NEW FIELD
-        date = datetime.strptime(date_str, '%Y-%m-%d').date()
-
+        date = datetime.strptime(request.form['date'], '%Y-%m-%d').date()
+        subj = request.form['subject']
         for student in students:
             status = request.form.get(f"status_{student.id}")
             if status:
-                rec = Attendance(
-                    date=date,
-                    lecture_subject=subject_name,  # <--- SAVING LECTURE NAME
-                    status=status,
-                    student_id=student.id,
-                    teacher_id=teacher.id,
-                    class_name=cls,
-                    division=div
-                )
+                rec = Attendance(date=date, lecture_subject=subj, status=status, student_id=student.id,
+                                 teacher_id=teacher.id, class_name=cls, division=div)
                 db.session.add(rec)
         db.session.commit()
-        flash(f"Attendance for {subject_name} Saved!", "success")
+        flash("Attendance Saved!", "success")
         return redirect(f"/teacher/attendance?class_name={cls}&div={div}")
-
-    return render_template('teacher_attendance.html', teacher=teacher, students=students,
-                           selected_class=cls, selected_div=div, now=datetime.now())
+    return render_template('teacher_attendance.html', teacher=teacher, students=students, selected_class=cls,
+                           selected_div=div, now=datetime.now())
 
 
 # --- STUDENT ROUTES ---
@@ -319,7 +306,6 @@ def student_dashboard():
         file = request.files.get('student_answer')
         assign = Assignment.query.get(aid)
 
-        # Grading Logic
         student_text = extract_text_from_file(file)
         score, feedback = compute_score(student_text, assign.answer_key_content)
 
@@ -330,19 +316,14 @@ def student_dashboard():
         flash(f"Graded: {score}%", "success")
         return redirect('/student/dashboard')
 
-    # --- STRICT ASSIGNMENT FILTERING ---
-    # Only show assignments that match the Student's Class AND Division
     assigns = Assignment.query.filter_by(class_name=student.class_name, division=student.division).all()
-
     my_subs = {s.assignment_id: s for s in Submission.query.filter_by(student_id=student.id).all()}
 
-    # Simple Attendance Stats (Total Lectures)
-    total_lectures = Attendance.query.filter_by(student_id=student.id).count()
-    present_lectures = Attendance.query.filter_by(student_id=student.id, status='Present').count()
-    pct = int((present_lectures / total_lectures) * 100) if total_lectures > 0 else 0
-
-    return render_template('student_dashboard.html', student=student, assignments=assigns,
-                           submitted_map=my_subs, att_pct=pct, present_days=present_lectures, total_days=total_lectures)
+    total = Attendance.query.filter_by(student_id=student.id).count()
+    present = Attendance.query.filter_by(student_id=student.id, status='Present').count()
+    pct = int((present / total) * 100) if total > 0 else 0
+    return render_template('student_dashboard.html', student=student, assignments=assigns, submitted_map=my_subs,
+                           att_pct=pct, present_days=present, total_days=total)
 
 
 @routes.route('/student/download/<int:id>')
@@ -352,17 +333,14 @@ def download_q(id):
                      as_attachment=True)
 
 
-# --- CHATBOT API ---
 @routes.route('/api/chat', methods=['POST'])
 def chat_api():
     data = request.json
     user_message = data.get('message', '')
     if not user_message: return {"response": "I didn't hear anything!"}
-
     from app.ai_evaluator import get_groq_client
     client = get_groq_client()
     if not client: return {"response": "Error: AI Brain is offline."}
-
     try:
         completion = client.chat.completions.create(
             messages=[
