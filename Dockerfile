@@ -1,13 +1,6 @@
 FROM python:3.9-slim
 
-# 1. Install System Dependencies
-# We install 'tesseract-ocr' (the engine) and 'libgl1' (for image processing)
-RUN apt-get update && apt-get install -y \
-    tesseract-ocr \
-    libtesseract-dev \
-    libgl1-mesa-glx \
-    && rm -rf /var/lib/apt/lists/*
-
+# No Tesseract! Just pure Python.
 WORKDIR /app
 
 COPY requirements.txt .

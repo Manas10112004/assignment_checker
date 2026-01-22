@@ -8,14 +8,13 @@ from datetime import datetime
 
 # --- IMPORTS ---
 from app.models import db, User, Assignment, Submission, Attendance
-from app.ai_evaluator import compute_score, generate_answer_key
-from app.ocr_service import extract_text_local  # <--- NEW: Import Local OCR Engine
+# Import the updated AI functions
+from app.ai_evaluator import compute_score, generate_answer_key, extract_text_from_image
 
 routes = Blueprint('routes', __name__)
 
 
-# --- HELPER: Universal Text Extractor ---
-# Reads text from PDF, Images (via Tesseract), or Text files
+# --- HELPER: Cloud-Based Text Extractor ---
 def extract_text_from_file(file_storage):
     filename = file_storage.filename.lower()
 
@@ -26,21 +25,20 @@ def extract_text_from_file(file_storage):
             text = ""
             for page in pdf_reader.pages:
                 text += page.extract_text() + "\n"
-            file_storage.seek(0)  # Reset cursor so we can read it again later
+            file_storage.seek(0)
             return text
         except:
             return ""
 
-    # 2. Handle Images (The "Limitless" OCR Logic)
+    # 2. Handle Images (Send to Llama 4 Scout)
     elif filename.endswith(('.png', '.jpg', '.jpeg')):
         try:
-            # Read bytes, send to our Local Engine, then reset cursor
             file_bytes = file_storage.read()
-            text = extract_text_local(file_bytes)
-            file_storage.seek(0)
+            text = extract_text_from_image(file_bytes)
+            file_storage.seek(0)  # Reset cursor
             return text
         except Exception as e:
-            print(f"OCR Helper Error: {e}")
+            print(f"Vision Error: {e}")
             return ""
 
     # 3. Handle Text Files
@@ -145,11 +143,11 @@ def update_teacher_profile():
 def create_assignment():
     if session.get('role') != 'teacher': return redirect('/login')
 
-    # Ghost User Check
+    # Ghost User Fix
     teacher = User.query.get(session.get('user_id'))
     if not teacher:
         session.clear()
-        flash("Session expired. Please login again.", "warning")
+        flash("Session expired.", "warning")
         return redirect('/login')
 
     if request.method == 'POST':
@@ -161,7 +159,6 @@ def create_assignment():
                 flash("Class name is required", "danger")
                 return redirect('/teacher/create-assignment')
 
-            # We read the file once here
             file_data = file.read() if file else None
 
             new_assign = Assignment(
@@ -182,7 +179,7 @@ def create_assignment():
 
         except Exception as e:
             print(f"ERROR: {e}")
-            flash(f"Error creating assignment: {e}", "danger")
+            flash(f"Error: {e}", "danger")
             return redirect('/teacher/create-assignment')
 
     return render_template('create_assignment.html')
@@ -194,10 +191,8 @@ def generate_key_api():
     file = request.files.get('file')
     if not file: return {"error": "No file"}, 400
 
-    # Use our universal helper (supports PDF, Image, Text)
     text = extract_text_from_file(file)
-
-    if not text.strip(): return {"error": "Could not read text from file. Try a clearer image or PDF."}, 400
+    if not text.strip(): return {"error": "Could not read text from file."}, 400
 
     return {"key": generate_answer_key(text)}
 
@@ -280,22 +275,29 @@ def student_dashboard():
         file = request.files.get('student_answer')
         assign = Assignment.query.get(aid)
 
-        # 1. Detect if it's an Image
+        # 1. Read file logic
         filename = file.filename.lower()
-        is_image = filename.endswith(('.png', '.jpg', '.jpeg'))
-
-        # 2. Read bytes (crucial for OCR)
         file_data = file.read()
 
-        # 3. Grade it (Pass raw bytes + Flag to the AI evaluator)
-        score, feedback = compute_score(file_data, assign.answer_key_content, is_image=is_image)
+        # 2. Extract Text (Cloud AI or PDF Reader)
+        if filename.endswith(('.png', '.jpg', '.jpeg')):
+            student_text = extract_text_from_image(file_data)  # Uses Scout
+        elif filename.endswith('.pdf'):
+            student_text = extract_text_from_file(
+                file)  # Uses PyPDF (Re-read required if pointer moved, handled in helper)
+            if not student_text:  # Fallback for image-based PDFs could go here
+                student_text = ""
+        else:
+            student_text = file_data.decode('utf-8', errors='ignore')
 
-        # 4. Save Submission
+        # 3. Grade (Uses Maverick)
+        score, feedback = compute_score(student_text, assign.answer_key_content)
+
         sub = Submission(assignment_id=aid, student_id=student.id,
                          submitted_file=file_data, score=score, detailed_feedback=feedback)
         db.session.add(sub)
         db.session.commit()
-        flash(f"Graded! Score: {score}%", "success")
+        flash(f"Graded: {score}%", "success")
         return redirect('/student/dashboard')
 
     assigns = Assignment.query.filter_by(class_name=student.class_name, division=student.division).all()
