@@ -1,112 +1,117 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Create Assignment</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-slate-50 min-h-screen p-8 font-sans text-slate-800">
 
-{% block content %}
-<div class="flex min-h-screen">
-
-    <aside class="w-64 bg-slate-800 text-white flex flex-col shadow-lg fixed h-full z-10">
-        <div class="p-6 text-center border-b border-slate-700">
-            <h2 class="text-lg font-bold">Teacher Panel</h2>
+    <div class="max-w-3xl mx-auto">
+        <div class="flex items-center justify-between mb-8">
+            <h1 class="text-3xl font-bold text-indigo-900">Create New Assignment</h1>
+            <a href="/teacher/dashboard" class="text-slate-500 hover:text-indigo-600 font-medium transition"><i class="fas fa-arrow-left mr-2"></i>Back</a>
         </div>
-        <nav class="flex-1 p-4 space-y-2">
-            <a href="/teacher/dashboard" class="block py-2.5 px-4 rounded hover:bg-slate-700 text-gray-300 hover:text-white">Dashboard</a>
-            <a href="/teacher/create-assignment" class="block py-2.5 px-4 rounded bg-slate-700 text-white">Create Assignment</a>
-            <a href="/teacher/assignments" class="block py-2.5 px-4 rounded hover:bg-slate-700 text-gray-300 hover:text-white">View Assignments</a>
-            <a href="/logout" class="block py-2.5 px-4 rounded hover:bg-red-600 mt-8">Logout</a>
-        </nav>
-    </aside>
 
-    <main class="flex-1 p-10 ml-64 bg-gray-100 min-h-screen">
-        <div class="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-lg border-t-4 border-blue-600">
-            <h1 class="text-3xl font-bold text-gray-800 mb-8 border-b pb-4">Create New Assignment</h1>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="mb-6 p-4 rounded-xl text-white font-bold {{ 'bg-red-500' if category == 'danger' else 'bg-green-500' }} shadow-md">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
 
-            <form action="/teacher/create-assignment" method="POST" enctype="multipart/form-data" class="space-y-6">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
+            <form action="/teacher/create-assignment" method="POST" enctype="multipart/form-data" class="p-8 space-y-6">
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-4">
+                    <h2 class="text-lg font-bold text-slate-400 uppercase tracking-wider border-b pb-2">1. Assignment Details</h2>
+
                     <div>
-                        <label class="block font-bold text-gray-700 mb-2">Title</label>
-                        <input type="text" name="title" required placeholder="e.g. Python Intro"
-                               class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                        <label class="block font-bold text-slate-700 mb-1">Title</label>
+                        <input type="text" name="title" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition" placeholder="e.g. Calculus Mid-Term">
                     </div>
-                    <div>
-                        <label class="block font-bold text-gray-700 mb-2">Subject</label>
-                        <input type="text" name="subject_name" required placeholder="e.g. Computer Science"
-                               class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
-                    </div>
-                    <div>
-                        <label class="block font-bold text-gray-700 mb-2">Class</label>
-                        <input type="text" name="class_name" required placeholder="e.g. TY-CS"
-                               class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
-                    </div>
-                    <div>
-                        <label class="block font-bold text-gray-700 mb-2">Division</label>
-                        <input type="text" name="division" required placeholder="e.g. A"
-                               class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Subject</label>
+                            <input type="text" name="subject_name" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. Math">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Class</label>
+                            <input type="text" name="class_name" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. TY-CS">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">Division</label>
+                            <input type="text" name="division" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. A">
+                        </div>
                     </div>
                 </div>
 
-                <div class="border-t border-gray-200 my-4"></div>
+                <div class="space-y-4 pt-4">
+                    <h2 class="text-lg font-bold text-slate-400 uppercase tracking-wider border-b pb-2">2. AI Grading Setup</h2>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div class="bg-gray-50 p-5 rounded-lg border border-gray-300">
-                        <label class="block font-bold text-gray-700 mb-3">
-                            1. Upload Question Paper (PDF/TXT)
-                        </label>
-                        <input type="file" name="questionnaire_file" id="file-upload" accept=".pdf,.txt,.png,.jpg" required
-                               class="w-full bg-white p-2 rounded border cursor-pointer">
-                    </div>
+                    <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
+                        <label class="block font-bold text-indigo-900 mb-2">Upload Question Paper & Answer Key</label>
+                        <p class="text-sm text-indigo-600 mb-4">Upload a PDF or Image. The AI will read it to generate the Answer Key automatically.</p>
 
-                    <div class="bg-blue-50 p-5 rounded-lg border border-blue-300">
-                        <label class="block font-bold text-blue-900 mb-3">
-                            2. AI Answer Key
-                        </label>
-                        <button type="button" onclick="generateKey()" id="ai-btn"
-                                class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded hover:bg-blue-700 transition shadow mb-3">
-                            Generate Answer Key
+                        <input type="file" name="questionnaire_file" id="q_file" required
+                               class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 transition">
+
+                        <button type="button" onclick="generateKey()" class="mt-4 bg-white text-indigo-600 border border-indigo-200 px-4 py-2 rounded-lg font-bold text-sm hover:bg-indigo-100 transition shadow-sm">
+                            <i class="fas fa-magic mr-2"></i> Auto-Generate Key from File
                         </button>
-                        <textarea name="ai_generated_key" id="ai-key-box" rows="5"
-                                  placeholder="AI output will appear here..."
-                                  class="w-full p-2 border rounded text-sm font-mono"></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Answer Key (AI Logic)</label>
+                        <textarea name="ai_generated_key" id="ai_key" rows="6" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono text-sm" placeholder="The correct answers will appear here..."></textarea>
                     </div>
                 </div>
 
-                <button type="submit" class="w-full bg-green-600 text-white font-bold py-4 rounded-lg hover:bg-green-700 shadow-lg text-lg transition mt-6">
-                    Create Assignment
-                </button>
+                <div class="pt-6 border-t">
+                    <button type="submit" class="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-indigo-700 transition transform hover:-translate-y-0.5">
+                        Publish Assignment
+                    </button>
+                </div>
             </form>
         </div>
-    </main>
-</div>
+    </div>
 
-<script>
-    async function generateKey() {
-        const btn = document.getElementById('ai-btn');
-        const box = document.getElementById('ai-key-box');
-        const fileInput = document.getElementById('file-upload');
+    <script>
+        async function generateKey() {
+            const fileInput = document.getElementById('q_file');
+            const keyArea = document.getElementById('ai_key');
 
-        if (!fileInput.files[0]) {
-            alert("⚠️ Please upload a file first!");
-            return;
+            if (!fileInput.files[0]) {
+                alert("Please select a file first!");
+                return;
+            }
+
+            keyArea.value = "Scanning file and generating key... please wait (approx 10s)...";
+            keyArea.disabled = true;
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            try {
+                const res = await fetch('/teacher/generate-key', { method: 'POST', body: formData });
+                const data = await res.json();
+
+                if (data.error) {
+                    keyArea.value = "Error: " + data.error;
+                } else {
+                    keyArea.value = data.key;
+                }
+            } catch (e) {
+                keyArea.value = "Network Error. Please try again.";
+            } finally {
+                keyArea.disabled = false;
+            }
         }
-
-        btn.disabled = true;
-        btn.innerHTML = 'Generating...';
-        box.value = "Thinking...";
-
-        const formData = new FormData();
-        formData.append('file', fileInput.files[0]);
-
-        try {
-            const response = await fetch('/teacher/generate-key', { method: 'POST', body: formData });
-            const data = await response.json();
-            if (data.error) throw new Error(data.error);
-            box.value = data.key;
-            btn.innerHTML = 'Generated!';
-        } catch (error) {
-            alert("Error: " + error.message);
-            btn.innerHTML = 'Generate Answer Key';
-        } finally {
-            btn.disabled = false;
-        }
-    }
-</script>
-{% endblock %}
+    </script>
+</body>
+</html>
