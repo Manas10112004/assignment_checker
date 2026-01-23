@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, redirect, session, flash,
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy.orm.attributes import flag_modified
-from sqlalchemy.sql import func  # <--- New Import for Stats
+from sqlalchemy.sql import func
 from io import BytesIO
 import pypdf
 from pdf2image import convert_from_bytes
@@ -165,6 +165,25 @@ def admin_dashboard():
     users = User.query.order_by(User.id.desc()).all()
     assignments = Assignment.query.order_by(Assignment.id.desc()).all()
 
+    # --- LOGIC: Group Users by Class ---
+    class_map = {}  # Structure: { "TY-CS - A": { "students": [], "teachers": [] } }
+
+    for u in users:
+        # 1. Map Students
+        if u.role == 'student' and u.class_name and u.division:
+            key = f"{u.class_name} - {u.division}"
+            if key not in class_map: class_map[key] = {"students": [], "teachers": []}
+            class_map[key]["students"].append(u)
+
+        # 2. Map Teachers (Iterate their assigned classes)
+        if u.role == 'teacher' and u.assigned_classes:
+            for cls in u.assigned_classes:
+                key = f"{cls['class_name']} - {cls['division']}"
+                if key not in class_map: class_map[key] = {"students": [], "teachers": []}
+                # Avoid duplicates if teacher assigned to same class twice
+                if u not in class_map[key]["teachers"]:
+                    class_map[key]["teachers"].append(u)
+
     # Analytics
     total_users = len(users)
     total_assignments = len(assignments)
@@ -174,6 +193,7 @@ def admin_dashboard():
     return render_template('admin_dashboard.html',
                            users=users,
                            assignments=assignments,
+                           class_map=class_map,  # <--- Passing the organized data
                            stats={
                                "users": total_users,
                                "assignments": total_assignments,
@@ -182,16 +202,56 @@ def admin_dashboard():
                            })
 
 
+# --- NEW ROUTE: Admin Create User ---
+@routes.route('/admin/create-user', methods=['POST'])
+def admin_create_user():
+    if session.get('role') != 'admin': return redirect('/login')
+
+    username = request.form.get('username')
+    password = request.form.get('password')
+    role = request.form.get('role')
+
+    if User.query.filter_by(username=username).first():
+        flash(f"Username '{username}' already exists.", "danger")
+        return redirect('/admin/dashboard')
+
+    # Prepare class data
+    assigned_classes = []
+    class_name = request.form.get('class_name')
+    division = request.form.get('division')
+
+    if role == 'teacher' and class_name:
+        assigned_classes.append({
+            "class_name": class_name.strip().upper(),
+            "division": division.strip().upper()
+        })
+
+    # Student specific class data
+    student_class = class_name.strip().upper() if role == 'student' and class_name else None
+    student_div = division.strip().upper() if role == 'student' and division else None
+
+    new_user = User(
+        username=username,
+        password_hash=generate_password_hash(password),
+        role=role,
+        class_name=student_class,
+        division=student_div,
+        assigned_classes=assigned_classes
+    )
+
+    db.session.add(new_user)
+    db.session.commit()
+    flash(f"User {username} created successfully!", "success")
+    return redirect('/admin/dashboard')
+
+
 @routes.route('/admin/delete-user/<int:id>', methods=['POST'])
 def delete_user(id):
     if session.get('role') != 'admin': return redirect('/login')
     user = User.query.get_or_404(id)
-
-    # Prevent deleting yourself
     if user.id == session['user_id']:
         flash("You cannot delete the Super Admin.", "danger")
         return redirect('/admin/dashboard')
-
     db.session.delete(user)
     db.session.commit()
     flash(f"User {user.username} deleted.", "success")
@@ -202,17 +262,13 @@ def delete_user(id):
 def edit_user(id):
     if session.get('role') != 'admin': return redirect('/login')
     user = User.query.get_or_404(id)
-
     user.username = request.form.get('username')
     user.class_name = request.form.get('class_name')
     user.division = request.form.get('division')
-
-    # Password Override
     new_pass = request.form.get('new_password')
     if new_pass:
         user.password_hash = generate_password_hash(new_pass)
         flash(f"Password for {user.username} reset.", "info")
-
     db.session.commit()
     flash("User updated successfully.", "success")
     return redirect('/admin/dashboard')
@@ -228,7 +284,7 @@ def admin_delete_assignment(id):
     return redirect('/admin/dashboard')
 
 
-# --- TEACHER ROUTES ---
+# --- TEACHER ROUTES (Unchanged) ---
 @routes.route('/teacher/dashboard')
 def teacher_dashboard():
     if session.get('role') != 'teacher': return redirect('/login')
@@ -362,7 +418,7 @@ def teacher_attendance():
                            selected_div=div, now=datetime.now())
 
 
-# --- STUDENT ROUTES ---
+# --- STUDENT ROUTES (Unchanged) ---
 @routes.route('/student/dashboard', methods=['GET', 'POST'])
 def student_dashboard():
     if session.get('role') != 'student': return redirect('/login')

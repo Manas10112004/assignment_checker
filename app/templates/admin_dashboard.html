@@ -17,18 +17,33 @@
         function closeEditModal() {
             document.getElementById('edit-modal').classList.add('hidden');
         }
+
+        // NEW: Create User Modal
+        function openCreateModal() {
+            document.getElementById('create-modal').classList.remove('hidden');
+        }
+        function closeCreateModal() {
+            document.getElementById('create-modal').classList.add('hidden');
+        }
+
         function switchTab(tab) {
-            if(tab === 'users') {
-                document.getElementById('users-panel').classList.remove('hidden');
-                document.getElementById('assign-panel').classList.add('hidden');
-                document.getElementById('tab-users').classList.add('bg-blue-600');
-                document.getElementById('tab-assign').classList.remove('bg-blue-600');
-            } else {
-                document.getElementById('users-panel').classList.add('hidden');
-                document.getElementById('assign-panel').classList.remove('hidden');
-                document.getElementById('tab-users').classList.remove('bg-blue-600');
-                document.getElementById('tab-assign').classList.add('bg-blue-600');
-            }
+            // Hide all panels
+            document.getElementById('users-panel').classList.add('hidden');
+            document.getElementById('assign-panel').classList.add('hidden');
+            document.getElementById('classes-panel').classList.add('hidden');
+
+            // Reset buttons
+            document.getElementById('tab-users').classList.remove('bg-blue-600');
+            document.getElementById('tab-assign').classList.remove('bg-blue-600');
+            document.getElementById('tab-classes').classList.remove('bg-blue-600');
+            document.getElementById('tab-users').classList.add('bg-gray-700');
+            document.getElementById('tab-assign').classList.add('bg-gray-700');
+            document.getElementById('tab-classes').classList.add('bg-gray-700');
+
+            // Activate selected
+            document.getElementById(tab + '-panel').classList.remove('hidden');
+            document.getElementById('tab-' + tab).classList.remove('bg-gray-700');
+            document.getElementById('tab-' + tab).classList.add('bg-blue-600');
         }
     </script>
 </head>
@@ -45,7 +60,9 @@
             </div>
 
             <div class="flex gap-4">
-                <a href="/login" class="text-gray-400 hover:text-white px-4 py-2">View as User</a>
+                <button onclick="openCreateModal()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-bold shadow-lg transition">
+                    <i class="fas fa-plus-circle mr-2"></i> Create User
+                </button>
                 <a href="/logout" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-bold shadow-lg transition">Logout</a>
             </div>
         </div>
@@ -83,108 +100,147 @@
 
         <div class="flex mb-6 space-x-2">
             <button id="tab-users" onclick="switchTab('users')" class="bg-blue-600 px-6 py-2 rounded-lg font-bold text-white transition">Users</button>
+            <button id="tab-classes" onclick="switchTab('classes')" class="bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-lg font-bold text-white transition">Classes & Profiles</button>
             <button id="tab-assign" onclick="switchTab('assign')" class="bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-lg font-bold text-white transition">Assignments</button>
         </div>
 
         <div id="users-panel" class="space-y-8">
-
             <div class="bg-gray-800 rounded-xl shadow-xl border border-red-900/50 overflow-hidden">
-                <div class="bg-red-900/20 p-4 border-b border-red-900/30 flex justify-between items-center">
-                    <h3 class="font-bold text-red-400 uppercase tracking-widest text-sm"><i class="fas fa-shield-alt mr-2"></i> Administrators</h3>
+                <div class="bg-red-900/20 p-4 border-b border-red-900/30">
+                    <h3 class="font-bold text-red-400 uppercase text-sm"><i class="fas fa-shield-alt mr-2"></i> Administrators</h3>
                 </div>
                 <table class="w-full text-left">
                     <tbody class="divide-y divide-gray-700">
-                        {% for u in users %}
-                            {% if u.role == 'admin' %}
-                            <tr class="hover:bg-gray-700/50">
-                                <td class="p-4 text-gray-500 font-mono w-16">#{{ u.id }}</td>
-                                <td class="p-4 font-bold text-white">{{ u.username }}</td>
-                                <td class="p-4 text-gray-400">Super User Access</td>
-                                <td class="p-4 text-right">
-                                    <button onclick="openEditModal('{{u.id}}', '{{u.username}}', '', '')" class="text-blue-400 hover:text-white mr-3"><i class="fas fa-edit"></i> Edit</button>
-                                </td>
-                            </tr>
-                            {% endif %}
+                        {% for u in users if u.role == 'admin' %}
+                        <tr class="hover:bg-gray-700/50">
+                            <td class="p-4 text-gray-500 font-mono w-16">#{{ u.id }}</td>
+                            <td class="p-4 font-bold text-white">{{ u.username }}</td>
+                            <td class="p-4 text-right">
+                                <button onclick="openEditModal('{{u.id}}', '{{u.username}}', '', '')" class="text-blue-400 hover:text-white mr-3"><i class="fas fa-edit"></i> Edit</button>
+                            </td>
+                        </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
 
             <div class="bg-gray-800 rounded-xl shadow-xl border border-blue-900/50 overflow-hidden">
-                <div class="bg-blue-900/20 p-4 border-b border-blue-900/30 flex justify-between items-center">
-                    <h3 class="font-bold text-blue-400 uppercase tracking-widest text-sm"><i class="fas fa-chalkboard-teacher mr-2"></i> Teachers</h3>
+                <div class="bg-blue-900/20 p-4 border-b border-blue-900/30">
+                    <h3 class="font-bold text-blue-400 uppercase text-sm"><i class="fas fa-chalkboard-teacher mr-2"></i> Teachers</h3>
                 </div>
                 <table class="w-full text-left">
-                    <thead class="bg-gray-900/50 text-gray-500 text-xs uppercase">
-                        <tr>
-                            <th class="p-3 pl-4">ID</th>
-                            <th class="p-3">Username</th>
-                            <th class="p-3">Subject / Classes</th>
-                            <th class="p-3 text-right pr-6">Actions</th>
-                        </tr>
-                    </thead>
                     <tbody class="divide-y divide-gray-700">
-                        {% for u in users %}
-                            {% if u.role == 'teacher' %}
-                            <tr class="hover:bg-gray-700/50">
-                                <td class="p-4 text-gray-500 font-mono">#{{ u.id }}</td>
-                                <td class="p-4 font-bold text-white">{{ u.username }}</td>
-                                <td class="p-4 text-sm text-gray-300">
-                                    <div class="font-bold text-blue-300">{{ u.subject or 'No Subject' }}</div>
-                                    <div class="text-xs text-gray-500">
-                                        {% if u.assigned_classes %}
-                                            {% for c in u.assigned_classes %} {{ c.class_name }}-{{ c.division }}{% if not loop.last %}, {% endif %} {% endfor %}
-                                        {% else %} No classes {% endif %}
-                                    </div>
-                                </td>
-                                <td class="p-4 text-right">
-                                    <button onclick="openEditModal('{{u.id}}', '{{u.username}}', '', '')" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs mr-2"><i class="fas fa-edit"></i></button>
-                                    <form action="/admin/delete-user/{{u.id}}" method="POST" class="inline" onsubmit="return confirm('Delete teacher?');">
-                                        <button class="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-xs"><i class="fas fa-trash"></i></button>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% endif %}
+                        {% for u in users if u.role == 'teacher' %}
+                        <tr class="hover:bg-gray-700/50">
+                            <td class="p-4 text-gray-500 font-mono w-16">#{{ u.id }}</td>
+                            <td class="p-4 font-bold text-white">{{ u.username }}</td>
+                            <td class="p-4 text-sm text-gray-400">{{ u.subject or 'No Subject' }}</td>
+                            <td class="p-4 text-right">
+                                <button onclick="openEditModal('{{u.id}}', '{{u.username}}', '', '')" class="text-blue-400 hover:text-white mr-3"><i class="fas fa-edit"></i></button>
+                                <form action="/admin/delete-user/{{u.id}}" method="POST" class="inline" onsubmit="return confirm('Delete teacher?');">
+                                    <button class="text-red-500 hover:text-white"><i class="fas fa-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
 
             <div class="bg-gray-800 rounded-xl shadow-xl border border-green-900/50 overflow-hidden">
-                <div class="bg-green-900/20 p-4 border-b border-green-900/30 flex justify-between items-center">
-                    <h3 class="font-bold text-green-400 uppercase tracking-widest text-sm"><i class="fas fa-user-graduate mr-2"></i> Students</h3>
+                <div class="bg-green-900/20 p-4 border-b border-green-900/30">
+                    <h3 class="font-bold text-green-400 uppercase text-sm"><i class="fas fa-user-graduate mr-2"></i> Students</h3>
                 </div>
                 <table class="w-full text-left">
-                    <thead class="bg-gray-900/50 text-gray-500 text-xs uppercase">
-                        <tr>
-                            <th class="p-3 pl-4">ID</th>
-                            <th class="p-3">Username</th>
-                            <th class="p-3">Class & Div</th>
-                            <th class="p-3 text-right pr-6">Actions</th>
-                        </tr>
-                    </thead>
                     <tbody class="divide-y divide-gray-700">
-                        {% for u in users %}
-                            {% if u.role == 'student' %}
-                            <tr class="hover:bg-gray-700/50">
-                                <td class="p-4 text-gray-500 font-mono">#{{ u.id }}</td>
-                                <td class="p-4 font-bold text-white">{{ u.username }}</td>
-                                <td class="p-4">
-                                    <span class="bg-gray-700 px-2 py-1 rounded text-xs text-white">{{ u.class_name }} - {{ u.division }}</span>
-                                </td>
-                                <td class="p-4 text-right">
-                                    <button onclick="openEditModal('{{u.id}}', '{{u.username}}', '{{u.class_name}}', '{{u.division}}')" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs mr-2"><i class="fas fa-edit"></i></button>
-                                    <form action="/admin/delete-user/{{u.id}}" method="POST" class="inline" onsubmit="return confirm('Delete student?');">
-                                        <button class="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-xs"><i class="fas fa-trash"></i></button>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% endif %}
+                        {% for u in users if u.role == 'student' %}
+                        <tr class="hover:bg-gray-700/50">
+                            <td class="p-4 text-gray-500 font-mono w-16">#{{ u.id }}</td>
+                            <td class="p-4 font-bold text-white">{{ u.username }}</td>
+                            <td class="p-4 text-gray-400">{{ u.class_name }} - {{ u.division }}</td>
+                            <td class="p-4 text-right">
+                                <button onclick="openEditModal('{{u.id}}', '{{u.username}}', '{{u.class_name}}', '{{u.division}}')" class="text-blue-400 hover:text-white mr-3"><i class="fas fa-edit"></i></button>
+                                <form action="/admin/delete-user/{{u.id}}" method="POST" class="inline" onsubmit="return confirm('Delete student?');">
+                                    <button class="text-red-500 hover:text-white"><i class="fas fa-trash"></i></button>
+                                </form>
+                            </td>
+                        </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
+        </div>
 
+        <div id="classes-panel" class="hidden space-y-6">
+            {% if class_map %}
+                {% for class_key, profiles in class_map.items() %}
+                <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+                    <div class="bg-gray-700/50 p-4 flex justify-between items-center cursor-pointer hover:bg-gray-700 transition"
+                         onclick="document.getElementById('cls-{{loop.index}}').classList.toggle('hidden')">
+                        <h3 class="text-xl font-bold text-white">
+                            <i class="fas fa-users mr-2 text-indigo-400"></i> {{ class_key }}
+                        </h3>
+                        <span class="text-sm text-gray-400">
+                            {{ profiles.teachers|length }} Teachers • {{ profiles.students|length }} Students
+                            <i class="fas fa-chevron-down ml-2"></i>
+                        </span>
+                    </div>
+
+                    <div id="cls-{{loop.index}}" class="hidden p-6 bg-gray-900/50 border-t border-gray-700 grid md:grid-cols-2 gap-8">
+
+                        <div>
+                            <h4 class="text-blue-400 font-bold mb-3 border-b border-blue-900 pb-2">Instructors</h4>
+                            {% if profiles.teachers %}
+                                <ul class="space-y-2">
+                                {% for t in profiles.teachers %}
+                                    <li class="flex items-center justify-between bg-gray-800 p-3 rounded border border-gray-700">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-8 h-8 rounded-full bg-blue-900 flex items-center justify-center text-blue-300 font-bold">
+                                                {{ t.username[0]|upper }}
+                                            </div>
+                                            <div>
+                                                <p class="font-bold text-sm">{{ t.username }}</p>
+                                                <p class="text-xs text-gray-500">{{ t.subject or 'General' }}</p>
+                                            </div>
+                                        </div>
+                                        <button onclick="openEditModal('{{t.id}}', '{{t.username}}', '', '')" class="text-gray-500 hover:text-white"><i class="fas fa-cog"></i></button>
+                                    </li>
+                                {% endfor %}
+                                </ul>
+                            {% else %}
+                                <p class="text-gray-500 italic text-sm">No teachers assigned.</p>
+                            {% endif %}
+                        </div>
+
+                        <div>
+                            <h4 class="text-green-400 font-bold mb-3 border-b border-green-900 pb-2">Enrolled Students</h4>
+                            {% if profiles.students %}
+                                <div class="grid grid-cols-1 gap-2">
+                                {% for s in profiles.students %}
+                                    <div class="flex items-center justify-between bg-gray-800 p-3 rounded border border-gray-700">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-8 h-8 rounded-full bg-green-900 flex items-center justify-center text-green-300 font-bold">
+                                                {{ s.username[0]|upper }}
+                                            </div>
+                                            <p class="font-bold text-sm">{{ s.username }}</p>
+                                        </div>
+                                        <button onclick="openEditModal('{{s.id}}', '{{s.username}}', '{{s.class_name}}', '{{s.division}}')" class="text-gray-500 hover:text-white"><i class="fas fa-cog"></i></button>
+                                    </div>
+                                {% endfor %}
+                                </div>
+                            {% else %}
+                                <p class="text-gray-500 italic text-sm">No students found.</p>
+                            {% endif %}
+                        </div>
+
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="text-center py-12 bg-gray-800 rounded-xl border border-dashed border-gray-700">
+                    <p class="text-gray-400">No classes found. Create users to populate this section.</p>
+                </div>
+            {% endif %}
         </div>
 
         <div id="assign-panel" class="bg-gray-800 rounded-xl shadow-2xl border border-gray-700 overflow-hidden hidden">
@@ -206,10 +262,8 @@
                         <td class="p-4">{{ a.subject_name }} ({{ a.class_name }}-{{ a.division }})</td>
                         <td class="p-4 text-gray-400">{{ a.teacher_name }}</td>
                         <td class="p-4 text-right">
-                            <form action="/admin/delete-assignment/{{a.id}}" method="POST" onsubmit="return confirm('Force delete this assignment? All submissions will be lost.');">
-                                <button class="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-sm">
-                                    <i class="fas fa-trash"></i> Force Delete
-                                </button>
+                            <form action="/admin/delete-assignment/{{a.id}}" method="POST" onsubmit="return confirm('Force delete this assignment?');">
+                                <button class="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-sm"><i class="fas fa-trash"></i></button>
                             </form>
                         </td>
                     </tr>
@@ -218,6 +272,45 @@
             </table>
         </div>
 
+    </div>
+
+    <div id="create-modal" class="fixed inset-0 bg-black bg-opacity-80 hidden flex items-center justify-center z-50">
+        <div class="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-600">
+            <h2 class="text-2xl font-bold mb-6 text-white">Create New User</h2>
+            <form action="/admin/create-user" method="POST" class="space-y-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Role</label>
+                    <select name="role" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white">
+                        <option value="student">Student</option>
+                        <option value="teacher">Teacher</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Username</label>
+                    <input type="text" name="username" required class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Password</label>
+                    <input type="text" name="password" required class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Class</label>
+                        <input type="text" name="class_name" placeholder="e.g. TY-CS" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Division</label>
+                        <input type="text" name="division" placeholder="e.g. A" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white">
+                    </div>
+                </div>
+
+                <div class="mt-8 flex justify-end gap-3">
+                    <button type="button" onclick="closeCreateModal()" class="px-4 py-2 text-gray-400 hover:text-white">Cancel</button>
+                    <button type="submit" class="bg-green-600 hover:bg-green-500 text-white px-6 py-2 rounded font-bold">Create</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-80 hidden flex items-center justify-center z-50">
@@ -254,6 +347,7 @@
             </form>
         </div>
     </div>
-{% include 'chat_widget.html' %}
+
+    {% include 'chat_widget.html' %}
 </body>
 </html>
