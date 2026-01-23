@@ -46,9 +46,7 @@
 
             <div class="flex gap-4">
                 <a href="/login" class="text-gray-400 hover:text-white px-4 py-2">View as User</a>
-                <a href="/logout" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-bold shadow-lg transition">
-                    Logout
-                </a>
+                <a href="/logout" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-bold shadow-lg transition">Logout</a>
             </div>
         </div>
 
@@ -70,15 +68,15 @@
                 <p class="text-3xl font-bold text-white mt-2">{{ stats.users }}</p>
             </div>
             <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-xl">
-                <p class="text-gray-400 text-xs font-bold uppercase">Assignments Created</p>
+                <p class="text-gray-400 text-xs font-bold uppercase">Assignments</p>
                 <p class="text-3xl font-bold text-blue-400 mt-2">{{ stats.assignments }}</p>
             </div>
             <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-xl">
-                <p class="text-gray-400 text-xs font-bold uppercase">AI Graded Submissions</p>
+                <p class="text-gray-400 text-xs font-bold uppercase">Submissions</p>
                 <p class="text-3xl font-bold text-green-400 mt-2">{{ stats.submissions }}</p>
             </div>
             <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-xl">
-                <p class="text-gray-400 text-xs font-bold uppercase">Avg. Class Score</p>
+                <p class="text-gray-400 text-xs font-bold uppercase">Avg. Score</p>
                 <p class="text-3xl font-bold text-purple-400 mt-2">{{ stats.avg_score }}%</p>
             </div>
         </div>
@@ -88,48 +86,105 @@
             <button id="tab-assign" onclick="switchTab('assign')" class="bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-lg font-bold text-white transition">Assignments</button>
         </div>
 
-        <div id="users-panel" class="bg-gray-800 rounded-xl shadow-2xl border border-gray-700 overflow-hidden">
-            <table class="w-full text-left border-collapse">
-                <thead class="bg-gray-900 text-gray-400 uppercase text-xs">
-                    <tr>
-                        <th class="p-4">ID</th>
-                        <th class="p-4">Username</th>
-                        <th class="p-4">Role</th>
-                        <th class="p-4">Class</th>
-                        <th class="p-4 text-right">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-700">
-                    {% for u in users %}
-                    <tr class="hover:bg-gray-700/50 transition">
-                        <td class="p-4 text-gray-500 font-mono">#{{ u.id }}</td>
-                        <td class="p-4 font-bold">{{ u.username }}</td>
-                        <td class="p-4">
-                            <span class="px-2 py-1 rounded text-xs uppercase font-bold
-                                {% if u.role == 'admin' %} bg-red-900 text-red-200
-                                {% elif u.role == 'teacher' %} bg-blue-900 text-blue-200
-                                {% else %} bg-green-900 text-green-200 {% endif %}">
-                                {{ u.role }}
-                            </span>
-                        </td>
-                        <td class="p-4">{{ u.class_name }} {{ u.division }}</td>
-                        <td class="p-4 text-right flex justify-end gap-2">
-                            <button onclick="openEditModal('{{u.id}}', '{{u.username}}', '{{u.class_name or ''}}', '{{u.division or ''}}')"
-                                    class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-sm">
-                                <i class="fas fa-edit"></i> Edit
-                            </button>
-                            {% if u.role != 'admin' %}
-                            <form action="/admin/delete-user/{{u.id}}" method="POST" onsubmit="return confirm('Delete this user permanently?');">
-                                <button class="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-sm">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </form>
+        <div id="users-panel" class="space-y-8">
+
+            <div class="bg-gray-800 rounded-xl shadow-xl border border-red-900/50 overflow-hidden">
+                <div class="bg-red-900/20 p-4 border-b border-red-900/30 flex justify-between items-center">
+                    <h3 class="font-bold text-red-400 uppercase tracking-widest text-sm"><i class="fas fa-shield-alt mr-2"></i> Administrators</h3>
+                </div>
+                <table class="w-full text-left">
+                    <tbody class="divide-y divide-gray-700">
+                        {% for u in users %}
+                            {% if u.role == 'admin' %}
+                            <tr class="hover:bg-gray-700/50">
+                                <td class="p-4 text-gray-500 font-mono w-16">#{{ u.id }}</td>
+                                <td class="p-4 font-bold text-white">{{ u.username }}</td>
+                                <td class="p-4 text-gray-400">Super User Access</td>
+                                <td class="p-4 text-right">
+                                    <button onclick="openEditModal('{{u.id}}', '{{u.username}}', '', '')" class="text-blue-400 hover:text-white mr-3"><i class="fas fa-edit"></i> Edit</button>
+                                </td>
+                            </tr>
                             {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="bg-gray-800 rounded-xl shadow-xl border border-blue-900/50 overflow-hidden">
+                <div class="bg-blue-900/20 p-4 border-b border-blue-900/30 flex justify-between items-center">
+                    <h3 class="font-bold text-blue-400 uppercase tracking-widest text-sm"><i class="fas fa-chalkboard-teacher mr-2"></i> Teachers</h3>
+                </div>
+                <table class="w-full text-left">
+                    <thead class="bg-gray-900/50 text-gray-500 text-xs uppercase">
+                        <tr>
+                            <th class="p-3 pl-4">ID</th>
+                            <th class="p-3">Username</th>
+                            <th class="p-3">Subject / Classes</th>
+                            <th class="p-3 text-right pr-6">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-700">
+                        {% for u in users %}
+                            {% if u.role == 'teacher' %}
+                            <tr class="hover:bg-gray-700/50">
+                                <td class="p-4 text-gray-500 font-mono">#{{ u.id }}</td>
+                                <td class="p-4 font-bold text-white">{{ u.username }}</td>
+                                <td class="p-4 text-sm text-gray-300">
+                                    <div class="font-bold text-blue-300">{{ u.subject or 'No Subject' }}</div>
+                                    <div class="text-xs text-gray-500">
+                                        {% if u.assigned_classes %}
+                                            {% for c in u.assigned_classes %} {{ c.class_name }}-{{ c.division }}{% if not loop.last %}, {% endif %} {% endfor %}
+                                        {% else %} No classes {% endif %}
+                                    </div>
+                                </td>
+                                <td class="p-4 text-right">
+                                    <button onclick="openEditModal('{{u.id}}', '{{u.username}}', '', '')" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs mr-2"><i class="fas fa-edit"></i></button>
+                                    <form action="/admin/delete-user/{{u.id}}" method="POST" class="inline" onsubmit="return confirm('Delete teacher?');">
+                                        <button class="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-xs"><i class="fas fa-trash"></i></button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="bg-gray-800 rounded-xl shadow-xl border border-green-900/50 overflow-hidden">
+                <div class="bg-green-900/20 p-4 border-b border-green-900/30 flex justify-between items-center">
+                    <h3 class="font-bold text-green-400 uppercase tracking-widest text-sm"><i class="fas fa-user-graduate mr-2"></i> Students</h3>
+                </div>
+                <table class="w-full text-left">
+                    <thead class="bg-gray-900/50 text-gray-500 text-xs uppercase">
+                        <tr>
+                            <th class="p-3 pl-4">ID</th>
+                            <th class="p-3">Username</th>
+                            <th class="p-3">Class & Div</th>
+                            <th class="p-3 text-right pr-6">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-700">
+                        {% for u in users %}
+                            {% if u.role == 'student' %}
+                            <tr class="hover:bg-gray-700/50">
+                                <td class="p-4 text-gray-500 font-mono">#{{ u.id }}</td>
+                                <td class="p-4 font-bold text-white">{{ u.username }}</td>
+                                <td class="p-4">
+                                    <span class="bg-gray-700 px-2 py-1 rounded text-xs text-white">{{ u.class_name }} - {{ u.division }}</span>
+                                </td>
+                                <td class="p-4 text-right">
+                                    <button onclick="openEditModal('{{u.id}}', '{{u.username}}', '{{u.class_name}}', '{{u.division}}')" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs mr-2"><i class="fas fa-edit"></i></button>
+                                    <form action="/admin/delete-user/{{u.id}}" method="POST" class="inline" onsubmit="return confirm('Delete student?');">
+                                        <button class="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-xs"><i class="fas fa-trash"></i></button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
         </div>
 
         <div id="assign-panel" class="bg-gray-800 rounded-xl shadow-2xl border border-gray-700 overflow-hidden hidden">
