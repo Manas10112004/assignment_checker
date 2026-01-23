@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, session, flash,
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.sql import func  # <--- New Import for Stats
 from io import BytesIO
 import pypdf
 from pdf2image import convert_from_bytes
@@ -62,7 +63,6 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
 
-        # Admin Backdoor
         if username == 'admin' and password == 'admin123':
             admin = User.query.filter_by(username='admin').first()
             if not admin:
@@ -156,6 +156,78 @@ def reset_password(token):
     return render_template('reset_password.html')
 
 
+# --- ADMIN "GOD MODE" ROUTES ---
+
+@routes.route('/admin/dashboard')
+def admin_dashboard():
+    if session.get('role') != 'admin': return redirect('/login')
+
+    users = User.query.order_by(User.id.desc()).all()
+    assignments = Assignment.query.order_by(Assignment.id.desc()).all()
+
+    # Analytics
+    total_users = len(users)
+    total_assignments = len(assignments)
+    total_submissions = Submission.query.count()
+    avg_score = db.session.query(func.avg(Submission.score)).scalar() or 0
+
+    return render_template('admin_dashboard.html',
+                           users=users,
+                           assignments=assignments,
+                           stats={
+                               "users": total_users,
+                               "assignments": total_assignments,
+                               "submissions": total_submissions,
+                               "avg_score": round(avg_score, 1)
+                           })
+
+
+@routes.route('/admin/delete-user/<int:id>', methods=['POST'])
+def delete_user(id):
+    if session.get('role') != 'admin': return redirect('/login')
+    user = User.query.get_or_404(id)
+
+    # Prevent deleting yourself
+    if user.id == session['user_id']:
+        flash("You cannot delete the Super Admin.", "danger")
+        return redirect('/admin/dashboard')
+
+    db.session.delete(user)
+    db.session.commit()
+    flash(f"User {user.username} deleted.", "success")
+    return redirect('/admin/dashboard')
+
+
+@routes.route('/admin/edit-user/<int:id>', methods=['POST'])
+def edit_user(id):
+    if session.get('role') != 'admin': return redirect('/login')
+    user = User.query.get_or_404(id)
+
+    user.username = request.form.get('username')
+    user.class_name = request.form.get('class_name')
+    user.division = request.form.get('division')
+
+    # Password Override
+    new_pass = request.form.get('new_password')
+    if new_pass:
+        user.password_hash = generate_password_hash(new_pass)
+        flash(f"Password for {user.username} reset.", "info")
+
+    db.session.commit()
+    flash("User updated successfully.", "success")
+    return redirect('/admin/dashboard')
+
+
+@routes.route('/admin/delete-assignment/<int:id>', methods=['POST'])
+def admin_delete_assignment(id):
+    if session.get('role') != 'admin': return redirect('/login')
+    assign = Assignment.query.get_or_404(id)
+    db.session.delete(assign)
+    db.session.commit()
+    flash("Assignment force-deleted.", "success")
+    return redirect('/admin/dashboard')
+
+
 # --- TEACHER ROUTES ---
 @routes.route('/teacher/dashboard')
 def teacher_dashboard():
@@ -168,14 +240,11 @@ def teacher_dashboard():
 def update_teacher_profile():
     if session.get('role') != 'teacher': return redirect('/login')
     teacher = User.query.get(session['user_id'])
-
     teacher.email = request.form.get('email')
     teacher.subject = request.form.get('subject')
     teacher.bio = request.form.get('bio')
-
     new_class = request.form.get('new_class_name')
     new_div = request.form.get('new_division')
-
     if new_class and new_div:
         cls_obj = {"class_name": new_class.strip().upper(), "division": new_div.strip().upper()}
         if teacher.assigned_classes is None: teacher.assigned_classes = []
@@ -183,7 +252,6 @@ def update_teacher_profile():
         current_list.append(cls_obj)
         teacher.assigned_classes = current_list
         flag_modified(teacher, "assigned_classes")
-
     db.session.commit()
     return redirect('/teacher/dashboard')
 
@@ -192,12 +260,10 @@ def update_teacher_profile():
 def create_assignment():
     if session.get('role') != 'teacher': return redirect('/login')
     teacher = User.query.get(session['user_id'])
-
     if request.method == 'POST':
         try:
             file = request.files.get('questionnaire_file')
             key_text = request.form.get('ai_generated_key')
-
             new_assign = Assignment(
                 title=request.form.get('title'),
                 class_name=request.form.get('class_name').strip().upper(),
@@ -267,50 +333,33 @@ def delete_assignment(id):
     return redirect('/teacher/assignments')
 
 
-# --- ATTENDANCE FIX (Crash Proof) ---
 @routes.route('/teacher/attendance', methods=['GET', 'POST'])
 def teacher_attendance():
     if session.get('role') != 'teacher': return redirect('/login')
     teacher = User.query.get(session['user_id'])
-
     cls = request.args.get('class_name')
     div = request.args.get('div')
     students = []
-
     if cls and div:
         students = User.query.filter_by(role='student', class_name=cls, division=div).all()
-
     if request.method == 'POST':
-        # Safely get data
         date_str = request.form.get('date')
-        subject_name = request.form.get('subject')  # This was the cause of the 400 error
-
-        # Check if fields are missing
+        subject_name = request.form.get('subject')
         if not date_str or not subject_name:
-            flash("Error: You must provide both a Date and a Subject/Lecture name.", "danger")
+            flash("Error: Date and Subject required.", "danger")
             return redirect(f"/teacher/attendance?class_name={cls}&div={div}")
-
         date = datetime.strptime(date_str, '%Y-%m-%d').date()
-
         for student in students:
             status = request.form.get(f"status_{student.id}")
             if status:
-                rec = Attendance(
-                    date=date,
-                    lecture_subject=subject_name,
-                    status=status,
-                    student_id=student.id,
-                    teacher_id=teacher.id,
-                    class_name=cls,
-                    division=div
-                )
+                rec = Attendance(date=date, lecture_subject=subject_name, status=status, student_id=student.id,
+                                 teacher_id=teacher.id, class_name=cls, division=div)
                 db.session.add(rec)
         db.session.commit()
         flash(f"Attendance for {subject_name} Saved!", "success")
         return redirect(f"/teacher/attendance?class_name={cls}&div={div}")
-
-    return render_template('teacher_attendance.html', teacher=teacher, students=students,
-                           selected_class=cls, selected_div=div, now=datetime.now())
+    return render_template('teacher_attendance.html', teacher=teacher, students=students, selected_class=cls,
+                           selected_div=div, now=datetime.now())
 
 
 # --- STUDENT ROUTES ---
@@ -318,25 +367,20 @@ def teacher_attendance():
 def student_dashboard():
     if session.get('role') != 'student': return redirect('/login')
     student = User.query.get(session['user_id'])
-
     if request.method == 'POST':
         aid = request.form.get('assignment_id')
         file = request.files.get('student_answer')
         assign = Assignment.query.get(aid)
-
         student_text = extract_text_from_file(file)
         score, feedback = compute_score(student_text, assign.answer_key_content)
-
-        sub = Submission(assignment_id=aid, student_id=student.id,
-                         submitted_file=file.read(), score=score, detailed_feedback=feedback)
+        sub = Submission(assignment_id=aid, student_id=student.id, submitted_file=file.read(), score=score,
+                         detailed_feedback=feedback)
         db.session.add(sub)
         db.session.commit()
         flash(f"Graded: {score}%", "success")
         return redirect('/student/dashboard')
-
     assigns = Assignment.query.filter_by(class_name=student.class_name, division=student.division).all()
     my_subs = {s.assignment_id: s for s in Submission.query.filter_by(student_id=student.id).all()}
-
     total = Attendance.query.filter_by(student_id=student.id).count()
     present = Attendance.query.filter_by(student_id=student.id, status='Present').count()
     pct = int((present / total) * 100) if total > 0 else 0
@@ -361,10 +405,8 @@ def chat_api():
     if not client: return {"response": "Error: AI Brain is offline."}
     try:
         completion = client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": "You are a helpful teaching assistant."},
-                {"role": "user", "content": user_message}
-            ],
+            messages=[{"role": "system", "content": "You are a helpful teaching assistant."},
+                      {"role": "user", "content": user_message}],
             model="llama-3.3-70b-versatile",
         )
         return {"response": completion.choices[0].message.content}

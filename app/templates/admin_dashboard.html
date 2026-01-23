@@ -2,110 +2,203 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Admin Console</title>
+    <title>Admin God Mode</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script>
+        function openEditModal(id, username, className, division) {
+            document.getElementById('edit-id').value = id;
+            document.getElementById('edit-username').value = username;
+            document.getElementById('edit-class').value = className;
+            document.getElementById('edit-div').value = division;
+            document.getElementById('edit-form').action = "/admin/edit-user/" + id;
+            document.getElementById('edit-modal').classList.remove('hidden');
+        }
+        function closeEditModal() {
+            document.getElementById('edit-modal').classList.add('hidden');
+        }
+        function switchTab(tab) {
+            if(tab === 'users') {
+                document.getElementById('users-panel').classList.remove('hidden');
+                document.getElementById('assign-panel').classList.add('hidden');
+                document.getElementById('tab-users').classList.add('bg-blue-600');
+                document.getElementById('tab-assign').classList.remove('bg-blue-600');
+            } else {
+                document.getElementById('users-panel').classList.add('hidden');
+                document.getElementById('assign-panel').classList.remove('hidden');
+                document.getElementById('tab-users').classList.remove('bg-blue-600');
+                document.getElementById('tab-assign').classList.add('bg-blue-600');
+            }
+        }
+    </script>
 </head>
-<body class="bg-slate-900 text-slate-200 font-sans min-h-screen p-8">
+<body class="bg-gray-900 text-gray-200 font-sans min-h-screen p-8">
 
-    <div class="max-w-6xl mx-auto">
+    <div class="max-w-7xl mx-auto">
+
         <div class="flex justify-between items-center mb-10">
             <div>
-                <h1 class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-pink-600">
-                    <i class="fas fa-shield-alt mr-2"></i>Admin Console
+                <h1 class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-500">
+                    <i class="fas fa-user-shield mr-2"></i>GOD MODE
                 </h1>
-                <p class="text-slate-400 mt-1">System Overview & User Management</p>
+                <p class="text-gray-400 mt-1">System Administration Console</p>
             </div>
-            <a href="/logout" class="bg-slate-800 hover:bg-slate-700 text-white px-6 py-3 rounded-xl shadow-lg transition transform hover:-translate-y-1">
-                <i class="fas fa-sign-out-alt mr-2"></i>Logout
-            </a>
-        </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-            <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-slate-400 text-sm font-bold uppercase">Total Users</p>
-                        <p class="text-3xl font-bold text-white mt-1">{{ users|length }}</p>
-                    </div>
-                    <div class="bg-blue-900/50 p-3 rounded-lg text-blue-400">
-                        <i class="fas fa-users text-2xl"></i>
-                    </div>
-                </div>
-            </div>
-            <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-slate-400 text-sm font-bold uppercase">System Status</p>
-                        <p class="text-3xl font-bold text-green-400 mt-1">Online</p>
-                    </div>
-                    <div class="bg-green-900/50 p-3 rounded-lg text-green-400">
-                        <i class="fas fa-server text-2xl"></i>
-                    </div>
-                </div>
-            </div>
-            <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-slate-400 text-sm font-bold uppercase">Database</p>
-                        <p class="text-3xl font-bold text-purple-400 mt-1">Connected</p>
-                    </div>
-                    <div class="bg-purple-900/50 p-3 rounded-lg text-purple-400">
-                        <i class="fas fa-database text-2xl"></i>
-                    </div>
-                </div>
+            <div class="flex gap-4">
+                <a href="/login" class="text-gray-400 hover:text-white px-4 py-2">View as User</a>
+                <a href="/logout" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-bold shadow-lg transition">
+                    Logout
+                </a>
             </div>
         </div>
 
-        <div class="bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 overflow-hidden">
-            <div class="p-6 border-b border-slate-700">
-                <h2 class="text-xl font-bold text-white">Registered Users</h2>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-8">
+                    {% for category, message in messages %}
+                        <div class="p-4 rounded-lg font-bold text-center {{ 'bg-green-600' if category == 'success' else 'bg-red-600' }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+            <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-xl">
+                <p class="text-gray-400 text-xs font-bold uppercase">Total Users</p>
+                <p class="text-3xl font-bold text-white mt-2">{{ stats.users }}</p>
             </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
-                    <thead class="bg-slate-900/50 text-slate-400 uppercase text-xs font-bold tracking-wider">
-                        <tr>
-                            <th class="p-5">ID</th>
-                            <th class="p-5">User</th>
-                            <th class="p-5">Role</th>
-                            <th class="p-5">Class Details</th>
-                            <th class="p-5">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-700">
-                        {% for u in users %}
-                        <tr class="hover:bg-slate-700/50 transition">
-                            <td class="p-5 font-mono text-slate-500">#{{ u.id }}</td>
-                            <td class="p-5">
-                                <div class="font-bold text-white">{{ u.username }}</div>
-                                <div class="text-xs text-slate-500">{{ u.email or 'No email' }}</div>
-                            </td>
-                            <td class="p-5">
-                                <span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide
-                                    {% if u.role == 'admin' %} bg-red-900 text-red-300
-                                    {% elif u.role == 'teacher' %} bg-indigo-900 text-indigo-300
-                                    {% else %} bg-teal-900 text-teal-300 {% endif %}">
-                                    {{ u.role }}
-                                </span>
-                            </td>
-                            <td class="p-5 text-sm text-slate-300">
-                                {% if u.role == 'student' %}
-                                    {{ u.class_name }} - {{ u.division }}
-                                {% elif u.role == 'teacher' and u.assigned_classes %}
-                                    <span class="text-xs">{{ u.assigned_classes|length }} Classes Assigned</span>
-                                {% else %}
-                                    -
-                                {% endif %}
-                            </td>
-                            <td class="p-5">
-                                <button class="text-slate-400 hover:text-white transition"><i class="fas fa-edit"></i></button>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-xl">
+                <p class="text-gray-400 text-xs font-bold uppercase">Assignments Created</p>
+                <p class="text-3xl font-bold text-blue-400 mt-2">{{ stats.assignments }}</p>
             </div>
+            <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-xl">
+                <p class="text-gray-400 text-xs font-bold uppercase">AI Graded Submissions</p>
+                <p class="text-3xl font-bold text-green-400 mt-2">{{ stats.submissions }}</p>
+            </div>
+            <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-xl">
+                <p class="text-gray-400 text-xs font-bold uppercase">Avg. Class Score</p>
+                <p class="text-3xl font-bold text-purple-400 mt-2">{{ stats.avg_score }}%</p>
+            </div>
+        </div>
+
+        <div class="flex mb-6 space-x-2">
+            <button id="tab-users" onclick="switchTab('users')" class="bg-blue-600 px-6 py-2 rounded-lg font-bold text-white transition">Users</button>
+            <button id="tab-assign" onclick="switchTab('assign')" class="bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-lg font-bold text-white transition">Assignments</button>
+        </div>
+
+        <div id="users-panel" class="bg-gray-800 rounded-xl shadow-2xl border border-gray-700 overflow-hidden">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-gray-900 text-gray-400 uppercase text-xs">
+                    <tr>
+                        <th class="p-4">ID</th>
+                        <th class="p-4">Username</th>
+                        <th class="p-4">Role</th>
+                        <th class="p-4">Class</th>
+                        <th class="p-4 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-700">
+                    {% for u in users %}
+                    <tr class="hover:bg-gray-700/50 transition">
+                        <td class="p-4 text-gray-500 font-mono">#{{ u.id }}</td>
+                        <td class="p-4 font-bold">{{ u.username }}</td>
+                        <td class="p-4">
+                            <span class="px-2 py-1 rounded text-xs uppercase font-bold
+                                {% if u.role == 'admin' %} bg-red-900 text-red-200
+                                {% elif u.role == 'teacher' %} bg-blue-900 text-blue-200
+                                {% else %} bg-green-900 text-green-200 {% endif %}">
+                                {{ u.role }}
+                            </span>
+                        </td>
+                        <td class="p-4">{{ u.class_name }} {{ u.division }}</td>
+                        <td class="p-4 text-right flex justify-end gap-2">
+                            <button onclick="openEditModal('{{u.id}}', '{{u.username}}', '{{u.class_name or ''}}', '{{u.division or ''}}')"
+                                    class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-sm">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                            {% if u.role != 'admin' %}
+                            <form action="/admin/delete-user/{{u.id}}" method="POST" onsubmit="return confirm('Delete this user permanently?');">
+                                <button class="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-sm">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div id="assign-panel" class="bg-gray-800 rounded-xl shadow-2xl border border-gray-700 overflow-hidden hidden">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-gray-900 text-gray-400 uppercase text-xs">
+                    <tr>
+                        <th class="p-4">ID</th>
+                        <th class="p-4">Title</th>
+                        <th class="p-4">Subject</th>
+                        <th class="p-4">Teacher</th>
+                        <th class="p-4 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-700">
+                    {% for a in assignments %}
+                    <tr class="hover:bg-gray-700/50 transition">
+                        <td class="p-4 text-gray-500 font-mono">#{{ a.id }}</td>
+                        <td class="p-4 font-bold">{{ a.title }}</td>
+                        <td class="p-4">{{ a.subject_name }} ({{ a.class_name }}-{{ a.division }})</td>
+                        <td class="p-4 text-gray-400">{{ a.teacher_name }}</td>
+                        <td class="p-4 text-right">
+                            <form action="/admin/delete-assignment/{{a.id}}" method="POST" onsubmit="return confirm('Force delete this assignment? All submissions will be lost.');">
+                                <button class="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-sm">
+                                    <i class="fas fa-trash"></i> Force Delete
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-80 hidden flex items-center justify-center z-50">
+        <div class="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-600">
+            <h2 class="text-2xl font-bold mb-6 text-white">Edit User</h2>
+            <form id="edit-form" method="POST">
+                <input type="hidden" id="edit-id" name="id">
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">Username</label>
+                        <input type="text" id="edit-username" name="username" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm text-gray-400 mb-1">Class</label>
+                            <input type="text" id="edit-class" name="class_name" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-400 mb-1">Division</label>
+                            <input type="text" id="edit-div" name="division" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white">
+                        </div>
+                    </div>
+                    <div class="pt-4 border-t border-gray-700">
+                        <label class="block text-sm text-red-400 mb-1 font-bold">Reset Password (Optional)</label>
+                        <input type="text" name="new_password" placeholder="Enter new password" class="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white">
+                    </div>
+                </div>
+
+                <div class="mt-8 flex justify-end gap-3">
+                    <button type="button" onclick="closeEditModal()" class="px-4 py-2 text-gray-400 hover:text-white">Cancel</button>
+                    <button type="submit" class="bg-green-600 hover:bg-green-500 text-white px-6 py-2 rounded font-bold">Save Changes</button>
+                </div>
+            </form>
         </div>
     </div>
+
 </body>
 </html>
