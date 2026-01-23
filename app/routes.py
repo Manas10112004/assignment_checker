@@ -649,3 +649,62 @@ def chat_api():
         return {"response": completion.choices[0].message.content}
     except:
         return {"response": "Error."}
+
+
+# --- NEW: TEST MODULE ROUTES ---
+
+@routes.route('/student/take-test/<int:id>')
+def take_test(id):
+    if session.get('role') != 'student': return redirect('/login')
+    student = User.query.get(session['user_id'])
+    assignment = Assignment.query.get_or_404(id)
+
+    # Security Check: Is this test for their class?
+    if assignment.class_name != student.class_name or assignment.division != student.division:
+        flash("Access Denied: Wrong Class", "danger")
+        return redirect('/student/dashboard')
+
+    return render_template('take_test.html', assignment=assignment, student=student)
+
+
+@routes.route('/student/submit-test/<int:id>', methods=['POST'])
+def submit_test(id):
+    if session.get('role') != 'student': return redirect('/login')
+    student = User.query.get(session['user_id'])
+    assign = Assignment.query.get_or_404(id)
+
+    # 1. Get Data
+    file = request.files.get('student_answer')
+    text_answer = request.form.get('text_answer', '')
+    tab_switches = int(request.form.get('tab_switches', 0))
+
+    # 2. Combine Answers (File OR Text)
+    full_text = ""
+    if file and file.filename:
+        full_text += extract_text_from_file(file)
+    if text_answer:
+        full_text += "\n" + text_answer
+
+    # 3. Grading
+    decrypted_key = decrypt_data(assign.answer_key_content)
+    score, feedback = compute_score(full_text, decrypted_key)
+
+    # 4. Save
+    # If using text only, save it as a text file byte stream
+    file_data = file.read() if (file and file.filename) else text_answer.encode('utf-8')
+
+    sub = Submission(
+        assignment_id=id,
+        student_id=student.id,
+        submitted_file=file_data,
+        score=score,
+        detailed_feedback=feedback,
+        tab_switches=tab_switches,
+        suspicious_activity=(tab_switches > 2)
+    )
+    db.session.add(sub)
+    db.session.commit()
+
+    log_audit("TEST_SUBMIT", f"Student {student.username} finished test {assign.title}")
+    flash(f"Test Submitted! Score: {score}%", "success")
+    return redirect('/student/dashboard')

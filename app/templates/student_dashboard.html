@@ -27,17 +27,47 @@
     </aside>
 
     <main class="flex-1 p-10 ml-72 overflow-y-auto">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-8 space-y-3">
+                    {% for category, message in messages %}
+                        <div class="p-4 rounded-xl font-medium shadow-sm {{ 'bg-green-100 text-green-800' if category == 'success' else 'bg-blue-100 text-blue-800' }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
 
-        <h2 class="text-2xl font-bold mb-6 text-slate-800 flex items-center"><i class="fas fa-book-open mr-3 text-indigo-600"></i> Assignments</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <div class="bg-white p-6 rounded-2xl shadow-lg border-b-4 border-blue-500">
+                <h3 class="text-slate-500 text-xs font-bold uppercase tracking-widest">Attendance</h3>
+                <p class="text-4xl font-extrabold text-slate-800 mt-2">{{ att_pct }}%</p>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-lg border-b-4 border-emerald-500">
+                <h3 class="text-slate-500 text-xs font-bold uppercase tracking-widest">Present Days</h3>
+                <p class="text-4xl font-extrabold text-slate-800 mt-2">{{ present_days }} / {{ total_days }}</p>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-lg border-b-4 border-purple-500">
+                <h3 class="text-slate-500 text-xs font-bold uppercase tracking-widest">Pending Work</h3>
+                <p class="text-4xl font-extrabold text-slate-800 mt-2">{{ assignments|length + tests|length }}</p>
+            </div>
+        </div>
 
-        <div class="grid gap-6">
+        <div class="flex mb-8 border-b border-gray-200">
+            <button onclick="showSection('assignments')" id="btn-assignments" class="px-6 py-3 border-b-2 border-indigo-600 text-indigo-600 font-bold transition">Assignments</button>
+            <button onclick="showSection('tests')" id="btn-tests" class="px-6 py-3 border-b-2 border-transparent text-gray-500 hover:text-indigo-600 font-bold transition">Tests</button>
+            <button onclick="showSection('attendance')" id="btn-attendance" class="px-6 py-3 border-b-2 border-transparent text-gray-500 hover:text-indigo-600 font-bold transition">Attendance History</button>
+        </div>
+
+        <div id="sec-assignments" class="space-y-6">
+            <h2 class="text-xl font-bold text-slate-800 mb-4">Homework & Assignments</h2>
             {% for a in assignments %}
             <div class="bg-white rounded-2xl shadow-md overflow-hidden hover:shadow-xl transition duration-300 border border-slate-100">
                 <div class="p-6 flex flex-col md:flex-row gap-6">
                     <div class="flex-1">
                         <div class="flex items-center gap-3 mb-2">
                             <span class="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold uppercase">{{ a.subject_name }}</span>
-                            <span class="text-slate-400 text-xs"><i class="far fa-clock"></i> Due Soon</span>
                         </div>
                         <h3 class="text-xl font-bold text-slate-800 mb-2">{{ a.title }}</h3>
                         <a href="/student/download/{{ a.id }}" class="inline-flex items-center text-indigo-600 hover:text-indigo-800 font-medium transition">
@@ -52,12 +82,11 @@
                                 <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex items-center justify-between">
                                     <div>
                                         <p class="text-emerald-800 font-bold text-sm uppercase"><i class="fas fa-check-circle mr-1"></i> Graded</p>
-                                        <p class="text-xs text-emerald-600 mt-1">Great job!</p>
                                     </div>
                                     <div class="text-4xl font-extrabold text-emerald-600">{{ sub.score }}%</div>
                                 </div>
                                 {% if sub.detailed_feedback %}
-                                <div class="mt-2 text-xs text-slate-500 bg-slate-50 p-2 rounded">
+                                <div class="mt-2 text-xs text-slate-500 bg-slate-50 p-2 rounded max-h-24 overflow-y-auto">
                                     {% for k,v in sub.detailed_feedback.items() %}
                                         <div class="flex justify-between"><span>{{ k }}:</span> <span class="font-medium">{{ v }}</span></div>
                                     {% endfor %}
@@ -65,8 +94,7 @@
                                 {% endif %}
                             </div>
                         {% else %}
-                            <form action="/student/dashboard" method="POST" enctype="multipart/form-data" class="h-full flex flex-col justify-center"
-                                  onsubmit="return validateSubmission(this)">
+                            <form action="/student/dashboard" method="POST" enctype="multipart/form-data" class="h-full flex flex-col justify-center">
                                 <input type="hidden" name="assignment_id" value="{{ a.id }}">
                                 <input type="hidden" name="tab_switches" id="switches-{{a.id}}" value="0">
 
@@ -77,7 +105,7 @@
                                     </div>
                                     <input type="file" name="student_answer" required class="hidden" onchange="this.parentElement.style.borderColor = '#4f46e5';">
                                 </label>
-                                <button type="submit" class="w-full mt-3 bg-indigo-600 text-white py-2 rounded-xl font-bold shadow-md hover:bg-indigo-700 transition transform hover:-translate-y-0.5">
+                                <button type="submit" class="w-full mt-3 bg-indigo-600 text-white py-2 rounded-xl font-bold shadow-md hover:bg-indigo-700 transition">
                                     Submit & Grade
                                 </button>
                                 <p id="warning-{{a.id}}" class="text-xs text-red-500 mt-2 hidden text-center font-bold">
@@ -88,18 +116,103 @@
                     </div>
                 </div>
             </div>
+            {% else %}
+                <p class="text-gray-500 italic">No pending assignments.</p>
             {% endfor %}
         </div>
+
+        <div id="sec-tests" class="hidden space-y-6">
+            <h2 class="text-xl font-bold text-red-700 mb-4"><i class="fas fa-stopwatch mr-2"></i> Timed Tests</h2>
+            {% if tests %}
+                {% for t in tests %}
+                <div class="bg-white rounded-2xl shadow-lg border-l-4 border-red-500 p-6 flex justify-between items-center hover:shadow-xl transition">
+                    <div>
+                        <h3 class="text-xl font-bold text-slate-800">{{ t.title }}</h3>
+                        <p class="text-sm text-gray-500 font-bold mt-1">{{ t.subject_name }} • <span class="text-red-600"><i class="far fa-clock"></i> {{ t.duration_minutes }} Mins</span></p>
+                    </div>
+                    <div>
+                        {% if t.id in submitted_map %}
+                            <div class="bg-green-100 text-green-800 px-6 py-3 rounded-xl font-bold border border-green-200">
+                                Result: {{ submitted_map[t.id].score }}%
+                            </div>
+                        {% else %}
+                            <a href="/student/take-test/{{t.id}}"
+                               onclick="return confirm('Starting Test: \n- Fullscreen Mode Enforced\n- Timer will start immediately\n- Tab switching is monitored\n\nReady?')"
+                               class="bg-red-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-red-700 shadow-md transition transform hover:scale-105 flex items-center">
+                                <i class="fas fa-play-circle mr-2"></i> Start Test
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="text-center py-10 bg-white rounded-xl border-2 border-dashed border-gray-200">
+                    <i class="fas fa-mug-hot text-4xl text-gray-300 mb-3"></i>
+                    <p class="text-gray-400 font-medium">No active tests scheduled.</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <div id="sec-attendance" class="hidden">
+            <h2 class="text-xl font-bold text-slate-800 mb-4">Lecture-Wise Attendance Log</h2>
+            <div class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
+                <table class="w-full text-left">
+                    <thead class="bg-gray-50 text-gray-500 text-xs uppercase font-bold border-b border-gray-200">
+                        <tr>
+                            <th class="p-4">Date</th>
+                            <th class="p-4">Subject / Lecture</th>
+                            <th class="p-4 text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        {% for att in attendance_records %}
+                        <tr class="hover:bg-gray-50 transition">
+                            <td class="p-4 text-gray-700 font-mono">{{ att.date }}</td>
+                            <td class="p-4 font-bold text-slate-800">{{ att.lecture_subject }}</td>
+                            <td class="p-4 text-center">
+                                <span class="px-3 py-1 rounded-full text-xs font-bold uppercase
+                                    {{ 'bg-green-100 text-green-700 border border-green-200' if att.status == 'Present' else 'bg-red-100 text-red-700 border border-red-200' }}">
+                                    {{ att.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
     </main>
 
     {% include 'chat_widget.html' %}
 
     <script>
-        let tabSwitchCounts = {};
+        // 1. Tab Switching Logic
+        function showSection(sec) {
+            // Hide all sections
+            document.getElementById('sec-assignments').classList.add('hidden');
+            document.getElementById('sec-tests').classList.add('hidden');
+            document.getElementById('sec-attendance').classList.add('hidden');
 
+            // Reset Button Styles
+            ['assignments', 'tests', 'attendance'].forEach(id => {
+                const btn = document.getElementById('btn-' + id);
+                btn.classList.remove('border-indigo-600', 'text-indigo-600');
+                btn.classList.add('border-transparent', 'text-gray-500');
+            });
+
+            // Show Selected Section
+            document.getElementById('sec-' + sec).classList.remove('hidden');
+            const activeBtn = document.getElementById('btn-' + sec);
+            activeBtn.classList.remove('border-transparent', 'text-gray-500');
+            activeBtn.classList.add('border-indigo-600', 'text-indigo-600');
+        }
+
+        // 2. Browser Lockdown Detection (For Standard Assignments)
+        let tabSwitchCounts = {};
         document.addEventListener("visibilitychange", function() {
             if (document.hidden) {
-                // User switched tabs
+                // User switched tabs - increment all counters on page
                 document.querySelectorAll('input[name="tab_switches"]').forEach(input => {
                     let current = parseInt(input.value);
                     input.value = current + 1;
@@ -114,11 +227,6 @@
                 });
             }
         });
-
-        function validateSubmission(form) {
-            // Optional: Block submission if too many switches?
-            return confirm("Confirm submission?");
-        }
     </script>
 </body>
 </html>

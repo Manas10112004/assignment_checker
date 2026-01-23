@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Mode | {{ assignment.title }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .watermark {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg);
+            opacity: 0.05; font-size: 8rem; font-weight: bold; pointer-events: none; z-index: 0;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col overflow-hidden select-none" oncontextmenu="return false;">
+
+    <div class="watermark">{{ student.username }}</div>
+
+    <div class="bg-slate-900 text-white p-4 flex justify-between items-center shadow-md z-10">
+        <div>
+            <h1 class="font-bold text-lg">{{ assignment.title }}</h1>
+            <p class="text-xs text-gray-400">Subject: {{ assignment.subject_name }}</p>
+        </div>
+
+        <div class="flex items-center gap-6">
+            <div class="text-center">
+                <p class="text-xs text-gray-400 uppercase tracking-widest">Time Remaining</p>
+                <div id="timer" class="text-3xl font-mono font-bold text-red-500">00:00:00</div>
+            </div>
+            <button onclick="submitTest()" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded font-bold shadow-lg border border-red-500">
+                Finish Test
+            </button>
+        </div>
+    </div>
+
+    <div class="flex-1 flex overflow-hidden z-10">
+
+        <div class="w-1/2 h-full bg-gray-800 border-r border-gray-700">
+            <iframe src="/student/download/{{ assignment.id }}#toolbar=0" class="w-full h-full" style="pointer-events: auto;"></iframe>
+        </div>
+
+        <div class="w-1/2 h-full bg-white p-8 overflow-y-auto">
+            <div class="max-w-xl mx-auto">
+                <h2 class="text-2xl font-bold text-gray-800 mb-2">Your Answer Sheet</h2>
+                <p class="text-sm text-gray-500 mb-6">Type your answers below or upload a photo of your handwritten notes.</p>
+
+                <form id="testForm" action="/student/submit-test/{{ assignment.id }}" method="POST" enctype="multipart/form-data" class="space-y-6">
+
+                    <input type="hidden" name="tab_switches" id="tab_switches" value="0">
+
+                    <div>
+                        <label class="block font-bold text-gray-700 mb-2">Type Answer (Optional)</label>
+                        <textarea name="text_answer" rows="10" class="w-full p-4 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition" placeholder="Write your answer here..."></textarea>
+                    </div>
+
+                    <div class="text-center text-gray-400 font-bold">- OR -</div>
+
+                    <div class="border-2 border-dashed border-indigo-200 rounded-xl p-6 bg-indigo-50 text-center">
+                        <i class="fas fa-camera text-3xl text-indigo-400 mb-2"></i>
+                        <p class="font-bold text-indigo-900">Upload Handwritten Answer</p>
+                        <input type="file" name="student_answer" class="mt-2 text-sm text-gray-500">
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 1. TIMER LOGIC
+        let duration = {{ assignment.duration_minutes }} * 60; // seconds
+        const timerDisplay = document.getElementById('timer');
+
+        const timer = setInterval(() => {
+            duration--;
+
+            let h = Math.floor(duration / 3600);
+            let m = Math.floor((duration % 3600) / 60);
+            let s = duration % 60;
+
+            timerDisplay.innerText = `${h}:${m < 10 ? '0'+m : m}:${s < 10 ? '0'+s : s}`;
+
+            if (duration <= 0) {
+                clearInterval(timer);
+                alert("Time's Up! Submitting automatically.");
+                submitTest();
+            }
+            // Warning at 5 mins
+            if (duration === 300) {
+                timerDisplay.classList.add('animate-pulse');
+                alert("5 Minutes Remaining!");
+            }
+        }, 1000);
+
+        // 2. SUBMIT FUNCTION
+        function submitTest() {
+            document.getElementById('testForm').submit();
+        }
+
+        // 3. TAB SWITCH TRACKING
+        let switches = 0;
+        document.addEventListener("visibilitychange", function() {
+            if (document.hidden) {
+                switches++;
+                document.getElementById('tab_switches').value = switches;
+                document.title = "⚠️ WARNING: COME BACK!";
+            } else {
+                document.title = "Test Mode | {{ assignment.title }}";
+                if(switches < 3) alert(`Warning ${switches}/3: Tab switching is monitored.`);
+            }
+        });
+
+        // 4. FULLSCREEN ENFORCER (Simple)
+        // Note: Browsers require user interaction to go full screen.
+        // We can ask them to press F11, or just monitor window focus.
+        window.onblur = function() {
+            console.log('Focus lost');
+            // Could trigger a warning here
+        };
+
+        // Prevent Right Click
+        document.addEventListener('contextmenu', event => event.preventDefault());
+    </script>
+</body>
+</html>
