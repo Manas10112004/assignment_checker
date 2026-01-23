@@ -1,3 +1,8 @@
+import os
+import smtplib
+import ssl
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from flask import Blueprint, render_template, request, redirect, session, flash, url_for, send_file
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -19,12 +24,37 @@ from app.ai_evaluator import compute_score, generate_answer_key, extract_text_fr
 
 routes = Blueprint('routes', __name__)
 
-# --- CONFIG ---
+# --- CONFIGURATION (FILL THESE IN) ---
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 465
+SENDER_EMAIL = "your_email@gmail.com"  # <--- PUT YOUR EMAIL HERE
+SENDER_PASSWORD = "your_app_password"  # <--- PUT YOUR APP PASSWORD HERE
 ENCRYPTION_KEY = Fernet.generate_key()
 cipher = Fernet(ENCRYPTION_KEY)
 
 
-# --- HELPERS ---
+# --- HELPER: REAL EMAIL SENDER ---
+def send_real_email(to_email, subject, html_body):
+    try:
+        # Create message
+        msg = MIMEMultipart()
+        msg['From'] = SENDER_EMAIL
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(html_body, 'html'))
+
+        # Connect to Gmail SMTP
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context) as server:
+            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+            server.sendmail(SENDER_EMAIL, to_email, msg.as_string())
+        return True
+    except Exception as e:
+        print(f"EMAIL ERROR: {e}")
+        return False
+
+
+# --- HELPER: AUDIT LOG ---
 def log_audit(action, details=""):
     try:
         if 'user_id' in session:
@@ -41,6 +71,7 @@ def log_audit(action, details=""):
         pass
 
 
+# --- HELPER: ENCRYPTION ---
 def encrypt_data(text):
     if not text: return None
     return cipher.encrypt(text.encode()).decode()
@@ -54,6 +85,7 @@ def decrypt_data(encrypted_text):
         return ""
 
 
+# --- HELPER: TEXT EXTRACTOR ---
 def extract_text_from_file(file_storage):
     filename = file_storage.filename.lower()
     if filename.endswith('.pdf'):
@@ -100,7 +132,7 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
 
-        # Admin Backdoor
+        # Admin Backdoor (Bypasses Email Verify)
         if username == 'admin' and password == 'admin123':
             admin = User.query.filter_by(username='admin').first()
             if not admin:
@@ -111,15 +143,14 @@ def login():
             session['user_id'] = admin.id
             session['role'] = 'admin'
             session['username'] = 'admin'
-            log_audit("LOGIN", "Admin Login")
             return redirect('/admin/dashboard')
 
         user = User.query.filter_by(username=username).first()
         if user and check_password_hash(user.password_hash, password):
 
-            # 1. CHECK EMAIL VERIFICATION
+            # 1. VERIFY EMAIL CHECK
             if not user.is_verified:
-                flash("Please verify your email first. Check your inbox (or console for demo link).", "warning")
+                flash("Account not active. Please check your email for the verification link.", "warning")
                 return redirect('/login')
 
             # 2. MFA CHECK
@@ -147,11 +178,12 @@ def register():
             flash('Username taken', 'danger')
             return redirect('/register')
 
-        # Generate Verification Token
         token = str(uuid.uuid4())
+        email = request.form.get('email')
 
-        assigned_classes = []
+        # Role & Class Logic
         role = request.form.get('role')
+        assigned_classes = []
         if role == 'teacher' and request.form.get('class_name'):
             assigned_classes.append({
                 "class_name": request.form.get('class_name').strip().upper(),
@@ -162,10 +194,10 @@ def register():
             username=request.form.get('username'),
             password_hash=generate_password_hash(request.form.get('password')),
             role=role,
-            email=request.form.get('email'),
+            email=email,
             phone_number=request.form.get('phone'),
             verification_token=token,
-            is_verified=False,  # Must verify first
+            is_verified=False,  # User MUST verify email
             class_name=request.form.get('class_name').strip().upper() if role == 'student' and request.form.get(
                 'class_name') else None,
             division=request.form.get('division').strip().upper() if role == 'student' and request.form.get(
@@ -175,10 +207,22 @@ def register():
         db.session.add(user)
         db.session.commit()
 
-        # Simulate Sending Email
+        # --- SEND REAL EMAIL ---
         verify_link = url_for('routes.verify_email', token=token, _external=True)
-        flash(f"DEMO: Verification Link sent to {user.email}: {verify_link}", "info")
-        log_audit("REGISTER", f"New user {user.username} registered")
+        email_body = f"""
+        <h1>Welcome to EduAI</h1>
+        <p>Please click the link below to verify your account:</p>
+        <a href="{verify_link}" style="padding: 10px 20px; background-color: blue; color: white; text-decoration: none; border-radius: 5px;">Verify Email</a>
+        <br><br>
+        <p>Or copy this link: {verify_link}</p>
+        """
+
+        if send_real_email(email, "Verify your EduAI Account", email_body):
+            flash(f"Verification email sent to {email}. Please check your inbox.", "info")
+        else:
+            # Fallback for localhost testing if SMTP fails
+            flash(f"SMTP Error! (Demo Link: {verify_link})", "warning")
+            print(f"VERIFY LINK: {verify_link}")
 
         return redirect('/login')
     return render_template('register.html')
@@ -191,10 +235,9 @@ def verify_email(token):
         user.is_verified = True
         user.verification_token = None
         db.session.commit()
-        flash("Email Verified! You can now login.", "success")
-        log_audit("EMAIL_VERIFY", f"User {user.username} verified email")
+        flash("Email Verified Successfully! Please login.", "success")
     else:
-        flash("Invalid verification link.", "danger")
+        flash("Invalid or expired verification link.", "danger")
     return redirect('/login')
 
 
@@ -206,15 +249,17 @@ def mfa_setup():
     if request.method == 'POST':
         secret = request.form.get('secret')
         code = request.form.get('code')
+
+        # Verify with window=1 (allows small time drift)
         totp = pyotp.TOTP(secret)
-        if totp.verify(code):
+        if totp.verify(code, valid_window=1):
             user.mfa_secret = secret
             user.mfa_enabled = True
             db.session.commit()
-            flash("MFA Enabled!", "success")
+            flash("MFA Enabled Successfully!", "success")
             return redirect('/teacher/dashboard' if user.role == 'teacher' else '/student/dashboard')
         else:
-            flash("Invalid Code.", "danger")
+            flash("Invalid Code. Make sure your phone time is synced.", "danger")
 
     secret = pyotp.random_base32()
     uri = pyotp.totp.TOTP(secret).provisioning_uri(name=user.username, issuer_name="EduAI")
@@ -228,20 +273,26 @@ def mfa_setup():
 @routes.route('/mfa/verify', methods=['GET', 'POST'])
 def mfa_verify():
     if 'pre_mfa_user_id' not in session: return redirect('/login')
+
     if request.method == 'POST':
         user = User.query.get(session['pre_mfa_user_id'])
         code = request.form.get('code')
+
+        # Relaxed verification (window=1)
         totp = pyotp.TOTP(user.mfa_secret)
-        if totp.verify(code):
+        if totp.verify(code, valid_window=1):
             session.pop('pre_mfa_user_id')
             session['user_id'] = user.id
             session['role'] = user.role
             session['username'] = user.username
             log_audit("LOGIN_MFA", f"MFA Verified for {user.username}")
+
             if user.role == 'admin': return redirect('/admin/dashboard')
             if user.role == 'teacher': return redirect('/teacher/dashboard')
             return redirect('/student/dashboard')
-        flash("Invalid Code", "danger")
+
+        flash("Invalid Code. Check your authenticator app.", "danger")
+
     return render_template('mfa_verify.html')
 
 
@@ -251,19 +302,26 @@ def logout():
     return redirect('/login')
 
 
+# --- PASSWORD RESET (Updated with Real Email) ---
 @routes.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'POST':
         username = request.form.get('username')
         user = User.query.filter_by(username=username).first()
-        if user:
+        if user and user.email:
             token = str(uuid.uuid4())
             user.reset_token = token
             db.session.commit()
+
             reset_link = url_for('routes.reset_password', token=token, _external=True)
-            flash(f"DEMO MODE: Password Reset Link: {reset_link}", "info")
+            email_body = f"<p>Click here to reset password: <a href='{reset_link}'>Reset Password</a></p>"
+
+            if send_real_email(user.email, "Reset Password", email_body):
+                flash("Reset link sent to your email.", "info")
+            else:
+                flash(f"SMTP Error. Demo Link: {reset_link}", "warning")
         else:
-            flash("User not found.", "danger")
+            flash("User not found or no email linked.", "danger")
     return render_template('forgot_password.html')
 
 
@@ -283,7 +341,7 @@ def reset_password(token):
     return render_template('reset_password.html')
 
 
-# --- ADMIN ROUTES (Updated for Models) ---
+# --- ADMIN ROUTES (Unchanged) ---
 @routes.route('/admin/dashboard')
 def admin_dashboard():
     if session.get('role') != 'admin': return redirect('/login')
@@ -353,8 +411,8 @@ def admin_create_user():
         username=username,
         password_hash=generate_password_hash(request.form.get('password')),
         role=role,
-        email=f"{username}@edu.com",  # Placeholder for admin-created users
-        is_verified=True,
+        email=f"{username}@edu.com",
+        is_verified=True,  # Admin created users are verified
         class_name=cls.strip().upper() if role == 'student' and cls else None,
         division=div.strip().upper() if role == 'student' and div else None,
         assigned_classes=assigned_classes
@@ -397,7 +455,7 @@ def admin_delete_assignment(id):
     return redirect('/admin/dashboard')
 
 
-# --- TEACHER ROUTES (Updated) ---
+# --- TEACHER ROUTES (Unchanged) ---
 @routes.route('/teacher/dashboard')
 def teacher_dashboard():
     if session.get('role') != 'teacher': return redirect('/login')
@@ -434,7 +492,6 @@ def create_assignment():
             file = request.files.get('questionnaire_file')
             key_text = request.form.get('ai_generated_key')
             encrypted_key = encrypt_data(key_text)
-
             new_assign = Assignment(
                 title=request.form.get('title'),
                 class_name=request.form.get('class_name').strip().upper(),
@@ -533,7 +590,7 @@ def teacher_attendance():
                            selected_div=div, now=datetime.now())
 
 
-# --- STUDENT ROUTES ---
+# --- STUDENT ROUTES (Unchanged) ---
 @routes.route('/student/dashboard', methods=['GET', 'POST'])
 def student_dashboard():
     if session.get('role') != 'student': return redirect('/login')
