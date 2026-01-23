@@ -9,7 +9,7 @@ class User(db.Model):
     role = db.Column(db.String(10), nullable=False)
     organization_id = db.Column(db.String(50), default="DEFAULT_ORG")
 
-    # Contact & Verification (NEW)
+    # Contact & Verification
     email = db.Column(db.String(120), unique=True, nullable=False)
     phone_number = db.Column(db.String(20), nullable=True)
     is_verified = db.Column(db.Boolean, default=False)
@@ -21,11 +21,12 @@ class User(db.Model):
     division = db.Column(db.String(10))
 
     # Teacher Fields
+    # Stores list of dicts: [{"class_name": "TY-CS", "division": "A"}]
     assigned_classes = db.Column(db.JSON, nullable=True, default=list)
     subject = db.Column(db.String(100))
     bio = db.Column(db.Text)
 
-    # Security
+    # Security Fields
     mfa_secret = db.Column(db.String(32), nullable=True)
     mfa_enabled = db.Column(db.Boolean, default=False)
     reset_token = db.Column(db.String(100), nullable=True)
@@ -34,8 +35,8 @@ class User(db.Model):
 # --- MASTER DATA ---
 class Classroom(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), nullable=False)
-    division = db.Column(db.String(10), nullable=False)
+    name = db.Column(db.String(50), nullable=False)  # e.g. "TY-CS"
+    division = db.Column(db.String(10), nullable=False)  # e.g. "A"
     subjects = db.relationship('Subject', backref='classroom', lazy=True, cascade="all, delete-orphan")
 
 
@@ -64,12 +65,12 @@ class Assignment(db.Model):
     teacher_name = db.Column(db.String(100), nullable=False)
     teacher_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
-    answer_key_content = db.Column(db.Text, nullable=True)  # Encrypted
+    answer_key_content = db.Column(db.Text, nullable=True)  # Stored Encrypted
     questionnaire_file = db.Column(db.LargeBinary, nullable=True)
     questionnaire_filename = db.Column(db.String(100))
 
-    # Test Fields
-    atype = db.Column(db.String(20), default="assignment")
+    # Test Module Fields
+    atype = db.Column(db.String(20), default="assignment")  # 'assignment' or 'test'
     duration_minutes = db.Column(db.Integer, default=0)
 
     submissions = db.relationship('Submission', backref='assignment', lazy=True, cascade="all, delete-orphan")
