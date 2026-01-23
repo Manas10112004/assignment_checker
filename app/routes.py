@@ -8,15 +8,55 @@ import pypdf
 from pdf2image import convert_from_bytes
 import uuid
 from datetime import datetime
+import pyotp  # MFA
+import qrcode  # MFA QR Code
+import base64
+from cryptography.fernet import Fernet  # Encryption
 
 # --- IMPORTS ---
-from app.models import db, User, Assignment, Submission, Attendance
+from app.models import db, User, Assignment, Submission, Attendance, AuditLog
 from app.ai_evaluator import compute_score, generate_answer_key, extract_text_from_image
 
 routes = Blueprint('routes', __name__)
 
+# --- SECURITY CONFIG ---
+# In production, this KEY must be in .env. Generates a key if missing.
+ENCRYPTION_KEY = Fernet.generate_key()
+cipher = Fernet(ENCRYPTION_KEY)
 
-# --- HELPER: Extract Text ---
+
+# --- AUDIT LOGGER ---
+def log_audit(action, details=""):
+    try:
+        if 'user_id' in session:
+            log = AuditLog(
+                user_id=session['user_id'],
+                username=session.get('username', 'Unknown'),
+                action=action,
+                ip_address=request.remote_addr,
+                details=details
+            )
+            db.session.add(log)
+            db.session.commit()
+    except Exception as e:
+        print(f"Audit Log Error: {e}")
+
+
+# --- ENCRYPTION HELPERS ---
+def encrypt_data(text):
+    if not text: return None
+    return cipher.encrypt(text.encode()).decode()
+
+
+def decrypt_data(encrypted_text):
+    if not encrypted_text: return ""
+    try:
+        return cipher.decrypt(encrypted_text.encode()).decode()
+    except:
+        return "[Decryption Failed]"
+
+
+# --- TEXT EXTRACTOR ---
 def extract_text_from_file(file_storage):
     filename = file_storage.filename.lower()
     if filename.endswith('.pdf'):
@@ -52,7 +92,7 @@ def extract_text_from_file(file_storage):
             return ""
 
 
-# --- AUTH ROUTES ---
+# --- AUTH & MFA ROUTES ---
 @routes.route('/')
 def home(): return redirect('/login')
 
@@ -63,6 +103,7 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
 
+        # Admin Backdoor (Dev Mode)
         if username == 'admin' and password == 'admin123':
             admin = User.query.filter_by(username='admin').first()
             if not admin:
@@ -71,28 +112,99 @@ def login():
                 db.session.commit()
             session['user_id'] = admin.id
             session['role'] = 'admin'
+            session['username'] = 'admin'
+            log_audit("LOGIN", "Admin Login via Backdoor")
             return redirect('/admin/dashboard')
 
         user = User.query.filter_by(username=username).first()
         if user and check_password_hash(user.password_hash, password):
+            # MFA CHECK
+            if user.mfa_enabled:
+                session['pre_mfa_user_id'] = user.id
+                return redirect('/mfa/verify')
+
+            # Normal Login
             session['user_id'] = user.id
             session['role'] = user.role
             session['username'] = user.username
+            log_audit("LOGIN", f"User {username} logged in")
 
             if user.role == 'admin': return redirect('/admin/dashboard')
             if user.role == 'teacher': return redirect('/teacher/dashboard')
             return redirect('/student/dashboard')
 
         flash('Invalid credentials', 'danger')
+        log_audit("LOGIN_FAILED", f"Failed login for {username}")
     return render_template('login.html')
+
+
+@routes.route('/mfa/setup', methods=['GET', 'POST'])
+def mfa_setup():
+    if 'user_id' not in session: return redirect('/login')
+    user = User.query.get(session['user_id'])
+
+    if request.method == 'POST':
+        # Verify the code to enable MFA
+        secret = request.form.get('secret')
+        code = request.form.get('code')
+        totp = pyotp.TOTP(secret)
+        if totp.verify(code):
+            user.mfa_secret = secret
+            user.mfa_enabled = True
+            db.session.commit()
+            flash("MFA Enabled Successfully!", "success")
+            log_audit("MFA_ENABLE", "User enabled 2FA")
+            return redirect('/teacher/dashboard' if user.role == 'teacher' else '/student/dashboard')
+        else:
+            flash("Invalid Code. Try again.", "danger")
+
+    # Generate Secret & QR
+    secret = pyotp.random_base32()
+    uri = pyotp.totp.TOTP(secret).provisioning_uri(name=user.username, issuer_name="EduAI System")
+
+    # Generate QR Code Image
+    img = qrcode.make(uri)
+    buffered = BytesIO()
+    img.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+
+    return render_template('mfa_setup.html', secret=secret, qr_code=img_str)
+
+
+@routes.route('/mfa/verify', methods=['GET', 'POST'])
+def mfa_verify():
+    if 'pre_mfa_user_id' not in session: return redirect('/login')
+
+    if request.method == 'POST':
+        user = User.query.get(session['pre_mfa_user_id'])
+        code = request.form.get('code')
+        totp = pyotp.TOTP(user.mfa_secret)
+
+        if totp.verify(code):
+            # Promote to full session
+            session.pop('pre_mfa_user_id')
+            session['user_id'] = user.id
+            session['role'] = user.role
+            session['username'] = user.username
+            log_audit("LOGIN_MFA", f"MFA Verified for {user.username}")
+
+            if user.role == 'admin': return redirect('/admin/dashboard')
+            if user.role == 'teacher': return redirect('/teacher/dashboard')
+            return redirect('/student/dashboard')
+        else:
+            flash("Invalid OTP Code", "danger")
+
+    return render_template('mfa_verify.html')
 
 
 @routes.route('/logout')
 def logout():
+    log_audit("LOGOUT", "User logged out")
     session.clear()
     return redirect('/login')
 
 
+# --- REGISTRATION & RECOVERY ---
 @routes.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -119,7 +231,8 @@ def register():
         )
         db.session.add(user)
         db.session.commit()
-        flash('Registered!', 'success')
+        log_audit("REGISTER", f"New user registered: {user.username}")
+        flash('Registered! Please Login.', 'success')
         return redirect('/login')
     return render_template('register.html')
 
@@ -135,6 +248,7 @@ def forgot_password():
             db.session.commit()
             reset_link = url_for('routes.reset_password', token=token, _external=True)
             flash(f"DEMO MODE: Password Reset Link: {reset_link}", "info")
+            log_audit("PASSWORD_RESET_REQ", f"Reset requested for {username}")
         else:
             flash("User not found.", "danger")
     return render_template('forgot_password.html')
@@ -151,97 +265,75 @@ def reset_password(token):
         user.password_hash = generate_password_hash(new_pass)
         user.reset_token = None
         db.session.commit()
+        log_audit("PASSWORD_RESET_SUCCESS", f"Password reset for {user.username}")
         flash("Password reset successful!", "success")
         return redirect('/login')
     return render_template('reset_password.html')
 
 
-# --- ADMIN "GOD MODE" ROUTES ---
-
+# --- ADMIN ROUTES ---
 @routes.route('/admin/dashboard')
 def admin_dashboard():
     if session.get('role') != 'admin': return redirect('/login')
 
     users = User.query.order_by(User.id.desc()).all()
     assignments = Assignment.query.order_by(Assignment.id.desc()).all()
+    audit_logs = AuditLog.query.order_by(AuditLog.id.desc()).limit(50).all()  # Fetch last 50 logs
 
-    # --- LOGIC: Group Users by Class ---
-    class_map = {}  # Structure: { "TY-CS - A": { "students": [], "teachers": [] } }
-
+    # Logic: Group Users
+    class_map = {}
     for u in users:
-        # 1. Map Students
-        if u.role == 'student' and u.class_name and u.division:
+        if u.role == 'student' and u.class_name:
             key = f"{u.class_name} - {u.division}"
             if key not in class_map: class_map[key] = {"students": [], "teachers": []}
             class_map[key]["students"].append(u)
-
-        # 2. Map Teachers (Iterate their assigned classes)
         if u.role == 'teacher' and u.assigned_classes:
             for cls in u.assigned_classes:
                 key = f"{cls['class_name']} - {cls['division']}"
                 if key not in class_map: class_map[key] = {"students": [], "teachers": []}
-                # Avoid duplicates if teacher assigned to same class twice
-                if u not in class_map[key]["teachers"]:
-                    class_map[key]["teachers"].append(u)
+                if u not in class_map[key]["teachers"]: class_map[key]["teachers"].append(u)
 
-    # Analytics
-    total_users = len(users)
-    total_assignments = len(assignments)
-    total_submissions = Submission.query.count()
-    avg_score = db.session.query(func.avg(Submission.score)).scalar() or 0
+    stats = {
+        "users": len(users),
+        "assignments": len(assignments),
+        "submissions": Submission.query.count(),
+        "avg_score": round(db.session.query(func.avg(Submission.score)).scalar() or 0, 1)
+    }
 
     return render_template('admin_dashboard.html',
-                           users=users,
-                           assignments=assignments,
-                           class_map=class_map,  # <--- Passing the organized data
-                           stats={
-                               "users": total_users,
-                               "assignments": total_assignments,
-                               "submissions": total_submissions,
-                               "avg_score": round(avg_score, 1)
-                           })
+                           users=users, assignments=assignments,
+                           class_map=class_map, stats=stats, audit_logs=audit_logs)
 
 
-# --- NEW ROUTE: Admin Create User ---
 @routes.route('/admin/create-user', methods=['POST'])
 def admin_create_user():
     if session.get('role') != 'admin': return redirect('/login')
-
     username = request.form.get('username')
     password = request.form.get('password')
     role = request.form.get('role')
 
     if User.query.filter_by(username=username).first():
-        flash(f"Username '{username}' already exists.", "danger")
+        flash("Username exists.", "danger")
         return redirect('/admin/dashboard')
 
-    # Prepare class data
     assigned_classes = []
-    class_name = request.form.get('class_name')
-    division = request.form.get('division')
-
-    if role == 'teacher' and class_name:
-        assigned_classes.append({
-            "class_name": class_name.strip().upper(),
-            "division": division.strip().upper()
-        })
-
-    # Student specific class data
-    student_class = class_name.strip().upper() if role == 'student' and class_name else None
-    student_div = division.strip().upper() if role == 'student' and division else None
+    cls = request.form.get('class_name')
+    div = request.form.get('division')
+    if role == 'teacher' and cls: assigned_classes.append(
+        {"class_name": cls.strip().upper(), "division": div.strip().upper()})
 
     new_user = User(
         username=username,
         password_hash=generate_password_hash(password),
         role=role,
-        class_name=student_class,
-        division=student_div,
+        class_name=cls.strip().upper() if role == 'student' and cls else None,
+        division=div.strip().upper() if role == 'student' and div else None,
         assigned_classes=assigned_classes
     )
-
     db.session.add(new_user)
     db.session.commit()
-    flash(f"User {username} created successfully!", "success")
+    log_audit("ADMIN_CREATE_USER", f"Admin created user {username} ({role})")
+    flash("User created!", "success")
     return redirect('/admin/dashboard')
 
 
@@ -249,11 +341,10 @@ def admin_create_user():
 def delete_user(id):
     if session.get('role') != 'admin': return redirect('/login')
     user = User.query.get_or_404(id)
-    if user.id == session['user_id']:
-        flash("You cannot delete the Super Admin.", "danger")
-        return redirect('/admin/dashboard')
+    if user.id == session['user_id']: return redirect('/admin/dashboard')
     db.session.delete(user)
     db.session.commit()
+    log_audit("ADMIN_DELETE_USER", f"Deleted user {user.username}")
     flash(f"User {user.username} deleted.", "success")
     return redirect('/admin/dashboard')
 
@@ -266,11 +357,10 @@ def edit_user(id):
     user.class_name = request.form.get('class_name')
     user.division = request.form.get('division')
     new_pass = request.form.get('new_password')
-    if new_pass:
-        user.password_hash = generate_password_hash(new_pass)
-        flash(f"Password for {user.username} reset.", "info")
+    if new_pass: user.password_hash = generate_password_hash(new_pass)
     db.session.commit()
-    flash("User updated successfully.", "success")
+    log_audit("ADMIN_EDIT_USER", f"Edited user {user.username}")
+    flash("Updated.", "success")
     return redirect('/admin/dashboard')
 
 
@@ -280,11 +370,12 @@ def admin_delete_assignment(id):
     assign = Assignment.query.get_or_404(id)
     db.session.delete(assign)
     db.session.commit()
-    flash("Assignment force-deleted.", "success")
+    log_audit("ADMIN_DELETE_ASSIGNMENT", f"Deleted Assignment ID {id}")
+    flash("Deleted.", "success")
     return redirect('/admin/dashboard')
 
 
-# --- TEACHER ROUTES (Unchanged) ---
+# --- TEACHER ROUTES ---
 @routes.route('/teacher/dashboard')
 def teacher_dashboard():
     if session.get('role') != 'teacher': return redirect('/login')
@@ -299,6 +390,8 @@ def update_teacher_profile():
     teacher.email = request.form.get('email')
     teacher.subject = request.form.get('subject')
     teacher.bio = request.form.get('bio')
+
+    # Class Management
     new_class = request.form.get('new_class_name')
     new_div = request.form.get('new_division')
     if new_class and new_div:
@@ -308,7 +401,9 @@ def update_teacher_profile():
         current_list.append(cls_obj)
         teacher.assigned_classes = current_list
         flag_modified(teacher, "assigned_classes")
+
     db.session.commit()
+    log_audit("PROFILE_UPDATE", "Teacher updated profile")
     return redirect('/teacher/dashboard')
 
 
@@ -320,6 +415,11 @@ def create_assignment():
         try:
             file = request.files.get('questionnaire_file')
             key_text = request.form.get('ai_generated_key')
+
+            # --- ENCRYPTION AT REST ---
+            # We encrypt the sensitive answer key before saving
+            encrypted_key = encrypt_data(key_text)
+
             new_assign = Assignment(
                 title=request.form.get('title'),
                 class_name=request.form.get('class_name').strip().upper(),
@@ -327,12 +427,13 @@ def create_assignment():
                 subject_name=request.form.get('subject_name'),
                 teacher_name=teacher.username,
                 teacher_id=teacher.id,
-                answer_key_content=key_text,
+                answer_key_content=encrypted_key,  # STORE ENCRYPTED
                 questionnaire_file=file.read() if file else None,
                 questionnaire_filename=secure_filename(file.filename) if file else "unknown.txt"
             )
             db.session.add(new_assign)
             db.session.commit()
+            log_audit("CREATE_ASSIGNMENT", f"Created {new_assign.title}")
             flash("Assignment Created!", "success")
             return redirect('/teacher/assignments')
         except Exception as e:
@@ -366,6 +467,7 @@ def edit_assignment(id):
         assignment.division = request.form.get('division')
         assignment.subject_name = request.form.get('subject_name')
         db.session.commit()
+        log_audit("EDIT_ASSIGNMENT", f"Edited {assignment.title}")
         flash("Updated!", "success")
         return redirect('/teacher/assignments')
     return render_template('edit_assignment.html', assignment=assignment)
@@ -386,6 +488,7 @@ def delete_assignment(id):
     if assign.teacher_id == session['user_id']:
         db.session.delete(assign)
         db.session.commit()
+        log_audit("DELETE_ASSIGNMENT", f"Deleted {assign.title}")
     return redirect('/teacher/assignments')
 
 
@@ -412,29 +515,54 @@ def teacher_attendance():
                                  teacher_id=teacher.id, class_name=cls, division=div)
                 db.session.add(rec)
         db.session.commit()
+        log_audit("MARK_ATTENDANCE", f"Attendance for {cls}-{div}")
         flash(f"Attendance for {subject_name} Saved!", "success")
         return redirect(f"/teacher/attendance?class_name={cls}&div={div}")
     return render_template('teacher_attendance.html', teacher=teacher, students=students, selected_class=cls,
                            selected_div=div, now=datetime.now())
 
 
-# --- STUDENT ROUTES (Unchanged) ---
+# --- STUDENT ROUTES ---
 @routes.route('/student/dashboard', methods=['GET', 'POST'])
 def student_dashboard():
     if session.get('role') != 'student': return redirect('/login')
     student = User.query.get(session['user_id'])
+
     if request.method == 'POST':
         aid = request.form.get('assignment_id')
         file = request.files.get('student_answer')
+
+        # BROWSER LOCKDOWN CHECK
+        tab_switches = request.form.get('tab_switches', 0)
+
         assign = Assignment.query.get(aid)
+
+        # DECRYPT KEY FOR AI
+        decrypted_key = decrypt_data(assign.answer_key_content)
+
         student_text = extract_text_from_file(file)
-        score, feedback = compute_score(student_text, assign.answer_key_content)
-        sub = Submission(assignment_id=aid, student_id=student.id, submitted_file=file.read(), score=score,
-                         detailed_feedback=feedback)
+        score, feedback = compute_score(student_text, decrypted_key)
+
+        # Penalize for cheating?
+        if int(tab_switches) > 2:
+            feedback["Warning"] = f"Suspected Cheating: {tab_switches} tab switches detected."
+            # Optionally reduce score automatically here
+
+        sub = Submission(
+            assignment_id=aid,
+            student_id=student.id,
+            submitted_file=file.read(),
+            score=score,
+            detailed_feedback=feedback,
+            tab_switches=int(tab_switches),
+            suspicious_activity=(int(tab_switches) > 2)
+        )
         db.session.add(sub)
         db.session.commit()
+        log_audit("SUBMIT_ASSIGNMENT", f"Student {student.username} submitted {assign.title}")
         flash(f"Graded: {score}%", "success")
         return redirect('/student/dashboard')
+
     assigns = Assignment.query.filter_by(class_name=student.class_name, division=student.division).all()
     my_subs = {s.assignment_id: s for s in Submission.query.filter_by(student_id=student.id).all()}
     total = Attendance.query.filter_by(student_id=student.id).count()

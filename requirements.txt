@@ -13,6 +13,9 @@ Pillow
 flask
 sqlalchemy
 pdf2image
+pyotp
+qrcode
+cryptography
 
 
 

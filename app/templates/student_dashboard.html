@@ -11,9 +11,6 @@
 
     <aside class="w-72 bg-slate-900 text-white flex flex-col shadow-2xl fixed h-full z-20">
       <div class="p-8 text-center border-b border-slate-800">
-        <div class="w-20 h-20 mx-auto bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-3xl mb-3 shadow-lg">
-            <i class="fas fa-user-graduate"></i>
-        </div>
         <h2 class="text-xl font-bold">{{ student.username }}</h2>
         <p class="text-slate-400 text-sm mt-1">{{ student.class_name }} - {{ student.division }}</p>
       </div>
@@ -30,35 +27,6 @@
     </aside>
 
     <main class="flex-1 p-10 ml-72 overflow-y-auto">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="mb-8 space-y-3">
-                    {% for category, message in messages %}
-                        <div class="p-4 rounded-xl font-medium shadow-sm {{ 'bg-green-100 text-green-800' if category == 'success' else 'bg-blue-100 text-blue-800' }}">
-                            {{ message }}
-                        </div>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-            <div class="bg-white p-6 rounded-2xl shadow-lg border-b-4 border-blue-500 relative overflow-hidden group hover:-translate-y-1 transition duration-300">
-                <div class="absolute right-0 top-0 p-4 text-blue-50 group-hover:text-blue-100 transition"><i class="fas fa-chart-line text-8xl transform rotate-12"></i></div>
-                <h3 class="text-slate-500 text-xs font-bold uppercase tracking-widest relative z-10">Attendance Rate</h3>
-                <p class="text-4xl font-extrabold text-slate-800 mt-2 relative z-10">{{ att_pct }}%</p>
-            </div>
-            <div class="bg-white p-6 rounded-2xl shadow-lg border-b-4 border-emerald-500 relative overflow-hidden group hover:-translate-y-1 transition duration-300">
-                <div class="absolute right-0 top-0 p-4 text-emerald-50 group-hover:text-emerald-100 transition"><i class="fas fa-calendar-check text-8xl"></i></div>
-                <h3 class="text-slate-500 text-xs font-bold uppercase tracking-widest relative z-10">Days Present</h3>
-                <p class="text-4xl font-extrabold text-slate-800 mt-2 relative z-10">{{ present_days }} <span class="text-lg text-slate-400 font-normal">/ {{ total_days }}</span></p>
-            </div>
-            <div class="bg-white p-6 rounded-2xl shadow-lg border-b-4 border-purple-500 relative overflow-hidden group hover:-translate-y-1 transition duration-300">
-                <div class="absolute right-0 top-0 p-4 text-purple-50 group-hover:text-purple-100 transition"><i class="fas fa-tasks text-8xl"></i></div>
-                <h3 class="text-slate-500 text-xs font-bold uppercase tracking-widest relative z-10">Active Tasks</h3>
-                <p class="text-4xl font-extrabold text-slate-800 mt-2 relative z-10">{{ assignments|length }}</p>
-            </div>
-        </div>
 
         <h2 class="text-2xl font-bold mb-6 text-slate-800 flex items-center"><i class="fas fa-book-open mr-3 text-indigo-600"></i> Assignments</h2>
 
@@ -97,8 +65,11 @@
                                 {% endif %}
                             </div>
                         {% else %}
-                            <form action="/student/dashboard" method="POST" enctype="multipart/form-data" class="h-full flex flex-col justify-center">
+                            <form action="/student/dashboard" method="POST" enctype="multipart/form-data" class="h-full flex flex-col justify-center"
+                                  onsubmit="return validateSubmission(this)">
                                 <input type="hidden" name="assignment_id" value="{{ a.id }}">
+                                <input type="hidden" name="tab_switches" id="switches-{{a.id}}" value="0">
+
                                 <label class="flex flex-col items-center justify-center w-full h-24 border-2 border-indigo-100 border-dashed rounded-xl cursor-pointer bg-indigo-50/50 hover:bg-indigo-50 transition">
                                     <div class="flex flex-col items-center justify-center pt-5 pb-6">
                                         <i class="fas fa-cloud-upload-alt text-indigo-400 text-2xl mb-1"></i>
@@ -109,6 +80,9 @@
                                 <button type="submit" class="w-full mt-3 bg-indigo-600 text-white py-2 rounded-xl font-bold shadow-md hover:bg-indigo-700 transition transform hover:-translate-y-0.5">
                                     Submit & Grade
                                 </button>
+                                <p id="warning-{{a.id}}" class="text-xs text-red-500 mt-2 hidden text-center font-bold">
+                                    <i class="fas fa-exclamation-triangle"></i> Tab switch detected!
+                                </p>
                             </form>
                         {% endif %}
                     </div>
@@ -117,6 +91,34 @@
             {% endfor %}
         </div>
     </main>
-{% include 'chat_widget.html' %}
+
+    {% include 'chat_widget.html' %}
+
+    <script>
+        let tabSwitchCounts = {};
+
+        document.addEventListener("visibilitychange", function() {
+            if (document.hidden) {
+                // User switched tabs
+                document.querySelectorAll('input[name="tab_switches"]').forEach(input => {
+                    let current = parseInt(input.value);
+                    input.value = current + 1;
+
+                    // Show visual warning
+                    let id = input.id.split('-')[1];
+                    let warning = document.getElementById('warning-' + id);
+                    if(warning) {
+                        warning.classList.remove('hidden');
+                        warning.innerText = `Warning: Tab Switched ${current + 1} times!`;
+                    }
+                });
+            }
+        });
+
+        function validateSubmission(form) {
+            // Optional: Block submission if too many switches?
+            return confirm("Confirm submission?");
+        }
+    </script>
 </body>
 </html>
