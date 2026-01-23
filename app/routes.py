@@ -17,6 +17,7 @@ import pyotp
 import qrcode
 import base64
 from cryptography.fernet import Fernet
+import socket  # Required for timeout handling
 
 # --- IMPORTS ---
 from app.models import db, User, Assignment, Submission, Attendance, AuditLog, Classroom, Subject
@@ -24,31 +25,45 @@ from app.ai_evaluator import compute_score, generate_answer_key, extract_text_fr
 
 routes = Blueprint('routes', __name__)
 
-# --- CONFIGURATION (FILL THESE IN) ---
+# --- CONFIGURATION ---
+# 1. GENERATE APP PASSWORD HERE: https://myaccount.google.com/apppasswords
+# 2. IF ON RENDER FREE TIER, THIS MIGHT BE BLOCKED. THE CODE BELOW HANDLES THAT.
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 465
-SENDER_EMAIL = "your_email@gmail.com"  # <--- PUT YOUR EMAIL HERE
-SENDER_PASSWORD = "your_app_password"  # <--- PUT YOUR APP PASSWORD HERE
+SENDER_EMAIL = "your_email@gmail.com"  # <--- REPLACE THIS
+SENDER_PASSWORD = "your_app_password"  # <--- REPLACE THIS
 ENCRYPTION_KEY = Fernet.generate_key()
 cipher = Fernet(ENCRYPTION_KEY)
 
 
-# --- HELPER: REAL EMAIL SENDER ---
+# --- HELPER: ROBUST EMAIL SENDER ---
 def send_real_email(to_email, subject, html_body):
+    # 1. Skip if credentials are not set
+    if "your_email" in SENDER_EMAIL or "your_app_password" in SENDER_PASSWORD:
+        print("EMAIL: Credentials not set. Skipping SMTP.")
+        return False
+
     try:
-        # Create message
         msg = MIMEMultipart()
         msg['From'] = SENDER_EMAIL
         msg['To'] = to_email
         msg['Subject'] = subject
         msg.attach(MIMEText(html_body, 'html'))
 
-        # Connect to Gmail SMTP
         context = ssl.create_default_context()
-        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context) as server:
+
+        # 2. Add Timeout (5 Seconds) to prevent Server Crash
+        with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context, timeout=5) as server:
             server.login(SENDER_EMAIL, SENDER_PASSWORD)
             server.sendmail(SENDER_EMAIL, to_email, msg.as_string())
         return True
+
+    except socket.timeout:
+        print("EMAIL ERROR: Connection timed out (Port 465 likely blocked).")
+        return False
+    except smtplib.SMTPAuthenticationError:
+        print("EMAIL ERROR: Authentication Failed. Check App Password.")
+        return False
     except Exception as e:
         print(f"EMAIL ERROR: {e}")
         return False
@@ -132,7 +147,7 @@ def login():
         username = request.form.get('username')
         password = request.form.get('password')
 
-        # Admin Backdoor (Bypasses Email Verify)
+        # Admin Backdoor (Bypasses Verification)
         if username == 'admin' and password == 'admin123':
             admin = User.query.filter_by(username='admin').first()
             if not admin:
@@ -148,12 +163,10 @@ def login():
         user = User.query.filter_by(username=username).first()
         if user and check_password_hash(user.password_hash, password):
 
-            # 1. VERIFY EMAIL CHECK
             if not user.is_verified:
-                flash("Account not active. Please check your email for the verification link.", "warning")
+                flash("Please verify your email. If email failed, check the demo link shown previously.", "warning")
                 return redirect('/login')
 
-            # 2. MFA CHECK
             if user.mfa_enabled:
                 session['pre_mfa_user_id'] = user.id
                 return redirect('/mfa/verify')
@@ -181,7 +194,6 @@ def register():
         token = str(uuid.uuid4())
         email = request.form.get('email')
 
-        # Role & Class Logic
         role = request.form.get('role')
         assigned_classes = []
         if role == 'teacher' and request.form.get('class_name'):
@@ -197,7 +209,7 @@ def register():
             email=email,
             phone_number=request.form.get('phone'),
             verification_token=token,
-            is_verified=False,  # User MUST verify email
+            is_verified=False,
             class_name=request.form.get('class_name').strip().upper() if role == 'student' and request.form.get(
                 'class_name') else None,
             division=request.form.get('division').strip().upper() if role == 'student' and request.form.get(
@@ -207,22 +219,18 @@ def register():
         db.session.add(user)
         db.session.commit()
 
-        # --- SEND REAL EMAIL ---
+        # --- ROBUST EMAIL LOGIC ---
         verify_link = url_for('routes.verify_email', token=token, _external=True)
-        email_body = f"""
-        <h1>Welcome to EduAI</h1>
-        <p>Please click the link below to verify your account:</p>
-        <a href="{verify_link}" style="padding: 10px 20px; background-color: blue; color: white; text-decoration: none; border-radius: 5px;">Verify Email</a>
-        <br><br>
-        <p>Or copy this link: {verify_link}</p>
-        """
+        email_body = f"<p>Click to verify: <a href='{verify_link}'>Verify Now</a></p>"
 
-        if send_real_email(email, "Verify your EduAI Account", email_body):
-            flash(f"Verification email sent to {email}. Please check your inbox.", "info")
+        # Try to send email, but fallback to Flash Message if it fails/times out
+        email_sent = send_real_email(email, "Verify EduAI", email_body)
+
+        if email_sent:
+            flash(f"Verification email sent to {email}.", "info")
         else:
-            # Fallback for localhost testing if SMTP fails
-            flash(f"SMTP Error! (Demo Link: {verify_link})", "warning")
-            print(f"VERIFY LINK: {verify_link}")
+            # FALLBACK: Show link on screen (CRITICAL FOR DEMOS/LOCALHOST)
+            flash(f"Email failed (Blocked/Timeout). USE THIS LINK: {verify_link}", "warning")
 
         return redirect('/login')
     return render_template('register.html')
@@ -235,9 +243,9 @@ def verify_email(token):
         user.is_verified = True
         user.verification_token = None
         db.session.commit()
-        flash("Email Verified Successfully! Please login.", "success")
+        flash("Email Verified! Please login.", "success")
     else:
-        flash("Invalid or expired verification link.", "danger")
+        flash("Invalid link.", "danger")
     return redirect('/login')
 
 
@@ -249,17 +257,15 @@ def mfa_setup():
     if request.method == 'POST':
         secret = request.form.get('secret')
         code = request.form.get('code')
-
-        # Verify with window=1 (allows small time drift)
         totp = pyotp.TOTP(secret)
         if totp.verify(code, valid_window=1):
             user.mfa_secret = secret
             user.mfa_enabled = True
             db.session.commit()
-            flash("MFA Enabled Successfully!", "success")
+            flash("MFA Enabled!", "success")
             return redirect('/teacher/dashboard' if user.role == 'teacher' else '/student/dashboard')
         else:
-            flash("Invalid Code. Make sure your phone time is synced.", "danger")
+            flash("Invalid Code.", "danger")
 
     secret = pyotp.random_base32()
     uri = pyotp.totp.TOTP(secret).provisioning_uri(name=user.username, issuer_name="EduAI")
@@ -273,26 +279,19 @@ def mfa_setup():
 @routes.route('/mfa/verify', methods=['GET', 'POST'])
 def mfa_verify():
     if 'pre_mfa_user_id' not in session: return redirect('/login')
-
     if request.method == 'POST':
         user = User.query.get(session['pre_mfa_user_id'])
         code = request.form.get('code')
-
-        # Relaxed verification (window=1)
         totp = pyotp.TOTP(user.mfa_secret)
         if totp.verify(code, valid_window=1):
             session.pop('pre_mfa_user_id')
             session['user_id'] = user.id
             session['role'] = user.role
             session['username'] = user.username
-            log_audit("LOGIN_MFA", f"MFA Verified for {user.username}")
-
             if user.role == 'admin': return redirect('/admin/dashboard')
             if user.role == 'teacher': return redirect('/teacher/dashboard')
             return redirect('/student/dashboard')
-
-        flash("Invalid Code. Check your authenticator app.", "danger")
-
+        flash("Invalid Code", "danger")
     return render_template('mfa_verify.html')
 
 
@@ -302,7 +301,7 @@ def logout():
     return redirect('/login')
 
 
-# --- PASSWORD RESET (Updated with Real Email) ---
+# --- PASSWORD RESET ---
 @routes.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'POST':
@@ -312,16 +311,16 @@ def forgot_password():
             token = str(uuid.uuid4())
             user.reset_token = token
             db.session.commit()
-
             reset_link = url_for('routes.reset_password', token=token, _external=True)
-            email_body = f"<p>Click here to reset password: <a href='{reset_link}'>Reset Password</a></p>"
 
+            # Send Email or Fallback
+            email_body = f"<p>Reset link: <a href='{reset_link}'>{reset_link}</a></p>"
             if send_real_email(user.email, "Reset Password", email_body):
                 flash("Reset link sent to your email.", "info")
             else:
-                flash(f"SMTP Error. Demo Link: {reset_link}", "warning")
+                flash(f"Email failed. USE THIS LINK: {reset_link}", "warning")
         else:
-            flash("User not found or no email linked.", "danger")
+            flash("User not found.", "danger")
     return render_template('forgot_password.html')
 
 
@@ -412,7 +411,7 @@ def admin_create_user():
         password_hash=generate_password_hash(request.form.get('password')),
         role=role,
         email=f"{username}@edu.com",
-        is_verified=True,  # Admin created users are verified
+        is_verified=True,
         class_name=cls.strip().upper() if role == 'student' and cls else None,
         division=div.strip().upper() if role == 'student' and div else None,
         assigned_classes=assigned_classes
