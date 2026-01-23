@@ -1,39 +1,111 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Admin Dashboard</title>
+    <meta charset="UTF-8">
+    <title>Admin Console</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
-<body class="bg-gray-900 text-white p-10">
-    <div class="flex justify-between items-center mb-8">
-        <h1 class="text-3xl font-bold text-red-500">ADMIN CONSOLE</h1>
-        <a href="/logout" class="bg-gray-700 px-4 py-2 rounded">Logout</a>
-    </div>
+<body class="bg-slate-900 text-slate-200 font-sans min-h-screen p-8">
 
-    <div class="bg-gray-800 p-6 rounded-lg">
-        <h2 class="text-xl font-bold mb-4">All System Users</h2>
-        <table class="w-full text-left">
-            <thead>
-                <tr class="border-b border-gray-700">
-                    <th class="p-2">ID</th>
-                    <th class="p-2">Username</th>
-                    <th class="p-2">Role</th>
-                    <th class="p-2">Class</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for u in users %}
-                <tr class="border-b border-gray-700">
-                    <td class="p-2">{{ u.id }}</td>
-                    <td class="p-2 font-bold">{{ u.username }}</td>
-                    <td class="p-2">
-                        <span class="px-2 py-1 rounded text-xs bg-gray-600">{{ u.role }}</span>
-                    </td>
-                    <td class="p-2">{{ u.class_name or '-' }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <div class="max-w-6xl mx-auto">
+        <div class="flex justify-between items-center mb-10">
+            <div>
+                <h1 class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-pink-600">
+                    <i class="fas fa-shield-alt mr-2"></i>Admin Console
+                </h1>
+                <p class="text-slate-400 mt-1">System Overview & User Management</p>
+            </div>
+            <a href="/logout" class="bg-slate-800 hover:bg-slate-700 text-white px-6 py-3 rounded-xl shadow-lg transition transform hover:-translate-y-1">
+                <i class="fas fa-sign-out-alt mr-2"></i>Logout
+            </a>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-slate-400 text-sm font-bold uppercase">Total Users</p>
+                        <p class="text-3xl font-bold text-white mt-1">{{ users|length }}</p>
+                    </div>
+                    <div class="bg-blue-900/50 p-3 rounded-lg text-blue-400">
+                        <i class="fas fa-users text-2xl"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-slate-400 text-sm font-bold uppercase">System Status</p>
+                        <p class="text-3xl font-bold text-green-400 mt-1">Online</p>
+                    </div>
+                    <div class="bg-green-900/50 p-3 rounded-lg text-green-400">
+                        <i class="fas fa-server text-2xl"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-slate-400 text-sm font-bold uppercase">Database</p>
+                        <p class="text-3xl font-bold text-purple-400 mt-1">Connected</p>
+                    </div>
+                    <div class="bg-purple-900/50 p-3 rounded-lg text-purple-400">
+                        <i class="fas fa-database text-2xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 overflow-hidden">
+            <div class="p-6 border-b border-slate-700">
+                <h2 class="text-xl font-bold text-white">Registered Users</h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-slate-900/50 text-slate-400 uppercase text-xs font-bold tracking-wider">
+                        <tr>
+                            <th class="p-5">ID</th>
+                            <th class="p-5">User</th>
+                            <th class="p-5">Role</th>
+                            <th class="p-5">Class Details</th>
+                            <th class="p-5">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-700">
+                        {% for u in users %}
+                        <tr class="hover:bg-slate-700/50 transition">
+                            <td class="p-5 font-mono text-slate-500">#{{ u.id }}</td>
+                            <td class="p-5">
+                                <div class="font-bold text-white">{{ u.username }}</div>
+                                <div class="text-xs text-slate-500">{{ u.email or 'No email' }}</div>
+                            </td>
+                            <td class="p-5">
+                                <span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide
+                                    {% if u.role == 'admin' %} bg-red-900 text-red-300
+                                    {% elif u.role == 'teacher' %} bg-indigo-900 text-indigo-300
+                                    {% else %} bg-teal-900 text-teal-300 {% endif %}">
+                                    {{ u.role }}
+                                </span>
+                            </td>
+                            <td class="p-5 text-sm text-slate-300">
+                                {% if u.role == 'student' %}
+                                    {{ u.class_name }} - {{ u.division }}
+                                {% elif u.role == 'teacher' and u.assigned_classes %}
+                                    <span class="text-xs">{{ u.assigned_classes|length }} Classes Assigned</span>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td class="p-5">
+                                <button class="text-slate-400 hover:text-white transition"><i class="fas fa-edit"></i></button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </body>
 </html>
