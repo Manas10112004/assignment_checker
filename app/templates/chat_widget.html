@@ -1,0 +1,135 @@
+<div id="ai-widget" class="fixed bottom-6 right-6 z-50 flex items-center justify-center cursor-pointer transition-transform hover:scale-110"
+     style="touch-action: none;">
+    <div class="bg-indigo-600 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center border-2 border-white text-white hover:bg-indigo-700 transition">
+        <i class="fas fa-robot text-2xl"></i>
+    </div>
+</div>
+
+<div id="chat-window" class="fixed bottom-24 right-6 w-80 bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 hidden flex-col overflow-hidden"
+     style="height: 450px; animation: slideUp 0.3s ease-out;">
+
+    <div class="bg-indigo-600 p-4 flex justify-between items-center text-white">
+        <h3 class="font-bold flex items-center gap-2"><i class="fas fa-brain"></i> AI Assistant</h3>
+        <button onclick="toggleChat()" class="hover:text-indigo-200 transition"><i class="fas fa-times"></i></button>
+    </div>
+
+    <div id="chat-messages" class="flex-1 p-4 overflow-y-auto space-y-3 bg-gray-50 text-sm scrollbar-thin scrollbar-thumb-gray-300">
+        <div class="flex gap-2">
+            <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 flex-shrink-0"><i class="fas fa-robot"></i></div>
+            <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-100 text-gray-700">
+                Hello! I'm your AI Assistant. How can I help you today?
+            </div>
+        </div>
+    </div>
+
+    <div class="p-3 bg-white border-t flex gap-2">
+        <input type="text" id="chat-input" placeholder="Type a question..."
+               class="flex-1 p-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm transition"
+               onkeypress="if(event.key === 'Enter') sendMessage()">
+        <button onclick="sendMessage()" class="bg-indigo-600 text-white px-4 rounded-xl hover:bg-indigo-700 transition shadow-md">
+            <i class="fas fa-paper-plane"></i>
+        </button>
+    </div>
+</div>
+
+<script>
+    const widget = document.getElementById('ai-widget');
+    const windowEl = document.getElementById('chat-window');
+    const msgsEl = document.getElementById('chat-messages');
+    const inputEl = document.getElementById('chat-input');
+
+    let isDragging = false;
+    let hasMoved = false;
+    let offsetX, offsetY;
+
+    // Drag Events
+    widget.addEventListener('mousedown', startDrag);
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('mouseup', endDrag);
+
+    // Touch Events (Mobile)
+    widget.addEventListener('touchstart', (e) => startDrag(e.touches[0]));
+    document.addEventListener('touchmove', (e) => drag(e.touches[0]));
+    document.addEventListener('touchend', endDrag);
+
+    function startDrag(e) {
+        isDragging = true;
+        hasMoved = false;
+        const rect = widget.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+        widget.style.transition = 'none';
+    }
+
+    function drag(e) {
+        if (!isDragging) return;
+        hasMoved = true;
+        e.preventDefault && e.preventDefault();
+        const x = e.clientX - offsetX;
+        const y = e.clientY - offsetY;
+        widget.style.left = `${x}px`;
+        widget.style.top = `${y}px`;
+        widget.style.right = 'auto';
+        widget.style.bottom = 'auto';
+    }
+
+    function endDrag() {
+        if (!isDragging) return;
+        isDragging = false;
+        widget.style.transition = 'transform 0.2s';
+        if (!hasMoved) toggleChat();
+    }
+
+    function toggleChat() {
+        windowEl.classList.toggle('hidden');
+        windowEl.classList.toggle('flex');
+        if (!windowEl.classList.contains('hidden')) inputEl.focus();
+    }
+
+    async function sendMessage() {
+        const text = inputEl.value.trim();
+        if (!text) return;
+
+        addMessage(text, 'user');
+        inputEl.value = '';
+        const loadingId = addMessage('Thinking...', 'bot', true);
+
+        try {
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ message: text })
+            });
+            const data = await res.json();
+            document.getElementById(loadingId).remove();
+            addMessage(data.response, 'bot');
+        } catch (e) {
+            document.getElementById(loadingId).remove();
+            addMessage("Error: Could not connect to AI.", 'bot');
+        }
+    }
+
+    function addMessage(text, sender, isLoading=false) {
+        const div = document.createElement('div');
+        const id = 'msg-' + Date.now();
+        div.id = id;
+        div.className = `flex gap-2 ${sender === 'user' ? 'flex-row-reverse' : ''}`;
+
+        const avatar = sender === 'bot'
+            ? `<div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 flex-shrink-0"><i class="fas fa-robot"></i></div>`
+            : `<div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 flex-shrink-0"><i class="fas fa-user"></i></div>`;
+
+        const bubbleColor = sender === 'bot' ? 'bg-white border-gray-100 text-gray-700' : 'bg-indigo-600 text-white';
+
+        div.innerHTML = `
+            ${avatar}
+            <div class="${bubbleColor} p-3 rounded-lg shadow-sm border max-w-[80%] break-words text-sm leading-relaxed">
+                ${isLoading ? '<i class="fas fa-spinner fa-spin"></i> ' : ''} ${text}
+            </div>
+        `;
+
+        msgsEl.appendChild(div);
+        msgsEl.scrollTop = msgsEl.scrollHeight;
+        return id;
+    }
+</script>
