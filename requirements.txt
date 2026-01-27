@@ -12,3 +12,4 @@ pyotp
 qrcode
 cryptography
 psycopg2-binary
+python-dotenv
