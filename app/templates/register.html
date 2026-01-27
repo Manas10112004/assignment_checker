@@ -1,15 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Join EduAI</title>
+    <meta charset="UTF-8"><title>Join EduAI</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         function toggleFields() {
             const role = document.getElementById('role').value;
             const sFields = document.getElementById('student-fields');
             const tFields = document.getElementById('teacher-fields');
-
             if (role === 'student') {
                 sFields.style.display = 'block'; tFields.style.display = 'none';
                 setReq('student', true); setReq('teacher', false);
@@ -18,52 +16,47 @@
                 setReq('student', false); setReq('teacher', true);
             }
         }
-        function setReq(pfx, val) {
-            document.querySelectorAll('.'+pfx+'-input').forEach(i => val ? i.setAttribute('required','true') : i.removeAttribute('required'));
-        }
+        function setReq(pfx, val) { document.querySelectorAll('.'+pfx+'-input').forEach(i => val ? i.setAttribute('required','true') : i.removeAttribute('required')); }
     </script>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
-    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
-        <h2 class="text-2xl font-bold mb-4 text-center">Create Account</h2>
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="p-3 mb-4 rounded text-white bg-blue-500">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-
-        <form action="/register" method="POST" class="space-y-4">
-            <input name="username" type="text" placeholder="Username" required class="w-full p-3 border rounded">
-            <input name="email" type="email" placeholder="Email" required class="w-full p-3 border rounded">
-            <input name="phone" type="text" placeholder="Phone" required class="w-full p-3 border rounded">
-            <input name="password" type="password" placeholder="Password" required class="w-full p-3 border rounded">
-
-            <select name="role" id="role" onchange="toggleFields()" class="w-full p-3 border rounded">
-                <option value="student">Student</option>
-                <option value="teacher">Teacher</option>
-            </select>
-
-            <div id="student-fields">
+<body class="bg-gray-50 flex min-h-screen">
+    <div class="w-full lg:w-1/2 flex items-center justify-center p-8 lg:p-12 overflow-y-auto">
+        <div class="w-full max-w-md space-y-6">
+            <h2 class="text-3xl font-bold text-gray-900 text-center">Create Account</h2>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}{% for c, m in messages %}<div class="p-4 rounded-xl text-center shadow-sm {{ 'bg-red-50 text-red-700' if c == 'danger' else 'bg-blue-50 text-blue-700' }}">{{ m }}</div>{% endfor %}{% endif %}
+            {% endwith %}
+            <form action="/register" method="POST" class="space-y-4">
+                <input name="username" type="text" placeholder="Username" required class="w-full p-3 border rounded-xl">
                 <div class="grid grid-cols-2 gap-4">
-                    <input name="student_class" type="text" placeholder="Class (e.g. TY-CS)" class="student-input w-full p-3 border rounded" required>
-                    <input name="student_div" type="text" placeholder="Div (A)" class="student-input w-full p-3 border rounded" required>
+                    <input name="email" type="email" placeholder="Email" required class="w-full p-3 border rounded-xl">
+                    <input name="phone" type="text" placeholder="Phone" required class="w-full p-3 border rounded-xl">
                 </div>
-                <input name="roll_no" type="text" placeholder="Roll No" class="student-input w-full p-3 border rounded mt-4" required>
-            </div>
-
-            <div id="teacher-fields" style="display:none;">
-                <div class="grid grid-cols-2 gap-4">
-                    <input name="teacher_class" type="text" placeholder="Class" class="teacher-input w-full p-3 border rounded">
-                    <input name="teacher_div" type="text" placeholder="Div" class="teacher-input w-full p-3 border rounded">
+                <input name="password" type="password" placeholder="Password" required class="w-full p-3 border rounded-xl">
+                <select name="role" id="role" onchange="toggleFields()" class="w-full p-3 border rounded-xl">
+                    <option value="student">Student</option>
+                    <option value="teacher">Teacher</option>
+                </select>
+                <div id="student-fields" class="space-y-4 pt-2 border-t border-gray-100">
+                    <p class="text-xs font-bold uppercase">Student Details</p>
+                    <div class="grid grid-cols-2 gap-4">
+                        <input name="student_class" type="text" placeholder="Class (TY-CS)" required class="student-input w-full p-3 border rounded-xl">
+                        <input name="student_div" type="text" placeholder="Div (A)" required class="student-input w-full p-3 border rounded-xl">
+                    </div>
+                    <input name="roll_no" type="text" placeholder="Roll No" required class="student-input w-full p-3 border rounded-xl">
                 </div>
-            </div>
-
-            <button class="w-full bg-blue-600 text-white p-3 rounded font-bold">Register</button>
-        </form>
-        <a href="/login" class="block text-center mt-4 text-blue-500">Back to Login</a>
+                <div id="teacher-fields" class="space-y-4 pt-2 border-t border-gray-100 hidden">
+                    <p class="text-xs font-bold uppercase">Assign First Class</p>
+                    <div class="grid grid-cols-2 gap-4">
+                        <input name="teacher_class" type="text" placeholder="Class" class="teacher-input w-full p-3 border rounded-xl">
+                        <input name="teacher_div" type="text" placeholder="Div" class="teacher-input w-full p-3 border rounded-xl">
+                    </div>
+                </div>
+                <button type="submit" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700">Create Account</button>
+            </form>
+            <p class="text-center text-sm"><a href="/login" class="text-indigo-600 font-bold">Sign in</a></p>
+        </div>
     </div>
+    <div class="hidden lg:block w-1/2 bg-indigo-900"></div>
 </body>
 </html>

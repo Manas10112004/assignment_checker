@@ -21,7 +21,6 @@ class User(db.Model):
     division = db.Column(db.String(10))
 
     # Teacher Fields
-    # Stores list of dicts: [{"class_name": "TY-CS", "division": "A"}]
     assigned_classes = db.Column(db.JSON, nullable=True, default=list)
     subject = db.Column(db.String(100))
     bio = db.Column(db.Text)
@@ -32,11 +31,10 @@ class User(db.Model):
     reset_token = db.Column(db.String(100), nullable=True)
 
 
-# --- MASTER DATA ---
 class Classroom(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), nullable=False)  # e.g. "TY-CS"
-    division = db.Column(db.String(10), nullable=False)  # e.g. "A"
+    name = db.Column(db.String(50), nullable=False)
+    division = db.Column(db.String(10), nullable=False)
     subjects = db.relationship('Subject', backref='classroom', lazy=True, cascade="all, delete-orphan")
 
 
@@ -65,12 +63,12 @@ class Assignment(db.Model):
     teacher_name = db.Column(db.String(100), nullable=False)
     teacher_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
-    answer_key_content = db.Column(db.Text, nullable=True)  # Stored Encrypted
+    answer_key_content = db.Column(db.Text, nullable=True)
     questionnaire_file = db.Column(db.LargeBinary, nullable=True)
     questionnaire_filename = db.Column(db.String(100))
 
-    # Test Module Fields
-    atype = db.Column(db.String(20), default="assignment")  # 'assignment' or 'test'
+    # Test Module
+    atype = db.Column(db.String(20), default="assignment")
     duration_minutes = db.Column(db.Integer, default=0)
 
     submissions = db.relationship('Submission', backref='assignment', lazy=True, cascade="all, delete-orphan")
